@@ -24,7 +24,7 @@ python3 -m planet.scripts.train \
 For debugging:
 
 python3 -m planet.scripts.train \
-    --logdir /path/to/logdir \
+    --logdir ./log \
     --resume_runs False \
     --num_runs 1000 \
     --config debug \
@@ -61,7 +61,7 @@ def start(logdir, args):
     args.params.logdir = logdir
   config = tools.AttrDict()
   with config.unlocked:
-    config = getattr(configs, args.config)(config, args.params)
+    config = getattr(configs, args.config)(config, args.params)  # function args.config('default'/'debug') is defined in configs(configs.py). task is defined.
   training.utility.collect_initial_episodes(config)
   return config
 
@@ -103,8 +103,8 @@ def main(args):
       num_runs=args.num_runs,
       ping_every=args.ping_every,
       resume_runs=args.resume_runs)
-  for run in experiment:
-    for unused_score in run:
+  for run in experiment:     # the method __iter__(self) defined in experiment.
+    for unused_score in run: # the method __iter__(self) defined in run.
       pass
 
 
@@ -119,7 +119,7 @@ if __name__ == '__main__':
       '--config', default='default',
       help='Select a configuration function from scripts/configs.py.')
   parser.add_argument(
-      '--params', default='{}',
+      '--params', default='{}', type=str,
       help='YAML formatted dictionary to be used by the config.')
   parser.add_argument(
       '--ping_every', type=int, default=0,
@@ -127,8 +127,8 @@ if __name__ == '__main__':
   parser.add_argument(
       '--resume_runs', type=boolean, default=True,
       help='Whether to resume unfinished runs in the log directory.')
-  args_, remaining = parser.parse_known_args()
-  args_.params = tools.AttrDict(yaml.safe_load(args_.params.replace('#', ',')))
+  args_, remaining = parser.parse_known_args()  # args_ = Namespace(config='default', logdir='./log_debug', num_runs=1, params={'tasks': ['cheetah_run']}, ping_every=0, resume_runs=True)
+  args_.params = tools.AttrDict(yaml.safe_load(args_.params.replace('#', ',')))  # class AttrDict: """Wrap a dictionary to access keys as attributes."""
   args_.logdir = args_.logdir and os.path.expanduser(args_.logdir)
   remaining.insert(0, sys.argv[0])
-  tf.app.run(lambda _: main(args_), remaining)
+  tf.app.run(lambda _: main(args_), remaining)   # tf.app.run(main, argv): Runs the program with an optional 'main' function and 'argv' list.

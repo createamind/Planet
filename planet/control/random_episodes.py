@@ -27,8 +27,11 @@ def random_episodes(env_ctor, num_episodes, output_dir=None):
     policy = lambda env, obs: env.action_space.sample()
     done = False
     obs = env.reset()
+    # cnt = 0
     while not done:
       action = policy(env, obs)
-      obs, _, done, info = env.step(action)
-    episodes.append(info['episode'])
+      obs, _, done, info = env.step(action)  # env.step
+    #   cnt += 1
+    # print(cnt)
+    episodes.append(info['episode'])  # if done is True, info stores the 'episode' information and 'episode' is written in a file(e.g. "~/planet/log_debug/00001/test_episodes").
   return episodes

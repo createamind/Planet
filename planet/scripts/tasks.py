@@ -22,6 +22,8 @@ import os
 
 import numpy as np
 
+import gym
+
 from planet import control
 from planet import networks
 from planet import tools
@@ -33,7 +35,7 @@ Task = collections.namedtuple(
 
 def cartpole_balance(config, params):
   action_repeat = params.get('action_repeat', 8)
-  max_length = 1000 // action_repeat
+  max_length = 1000 // action_repeat                     # max_length = 1000 // 8 = 125.
   state_components = ['reward', 'position', 'velocity']
   env_ctor = functools.partial(
       _dm_control_env, action_repeat, max_length, 'cartpole', 'balance')
@@ -100,6 +102,65 @@ def _dm_control_env(action_repeat, max_length, domain, task):
   from dm_control import suite
   def env_ctor():
     env = control.wrappers.DeepMindWrapper(suite.load(domain, task), (64, 64))
+    env = control.wrappers.ActionRepeat(env, action_repeat)
+    env = control.wrappers.LimitDuration(env, max_length)
+    env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
+    env = control.wrappers.ConvertTo32Bit(env)
+    return env
+  env = control.wrappers.ExternalProcess(env_ctor)
+  return env
+
+
+
+
+def pendulum(config, params):
+  action_repeat = params.get('action_repeat', 2)
+  max_length = 1000 // action_repeat
+  state_components = [
+      'reward', 'state']
+  env_ctor = functools.partial(
+      _dm_control_env_gym, action_repeat, max_length, 'Pendulum-v0')
+  return Task('pendulum', env_ctor, max_length, state_components)
+
+
+class DeepMindWrapper_gym(object):
+  """Wraps a Gym environment into an interface for downstream process"""
+
+  metadata = {'render.modes': ['rgb_array']}
+  reward_range = (-np.inf, np.inf)
+
+  def __init__(self, env, render_size=(64, 64), camera_id=0):
+    self._env = env
+    self._render_size = render_size
+    self._camera_id = camera_id
+    self.observation_space = gym.spaces.Dict({'state':self.observation_space})
+
+  def __getattr__(self, name):
+    return getattr(self._env, name)
+
+  def step(self, action):
+    obs, reward, done, info = self._env.step(action)
+    obs = {'state':obs}
+    return obs, reward, done, info
+
+  def reset(self):
+    return {'state':self._env.reset()}
+
+  def render(self, *args, **kwargs):
+    if kwargs.get('mode', 'rgb_array') != 'rgb_array':
+      raise ValueError("Only render mode 'rgb_array' is supported.")
+    del args  # Unused
+    del kwargs  # Unused
+    return self._env.physics.render(
+        *self._render_size, camera_id=self._camera_id)
+
+
+
+def _dm_control_env_gym(action_repeat, max_length, env_name):
+  import gym
+  def env_ctor():
+    env = gym.make(env_name)     # 'Pendulum-v0'
+    env = DeepMindWrapper_gym(env, (64, 64))
     env = control.wrappers.ActionRepeat(env, action_repeat)
     env = control.wrappers.LimitDuration(env, max_length)
     env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')

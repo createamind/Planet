@@ -1,0 +1,67 @@
+
+
+# planet/scripts/train.py
+def main(args):
+    experiment = training.Experiment(...)
+    for run in experiment:          # the method __iter__(self) defined in experiment.
+        for unused_score in run:    # the method __iter__(self) defined in run.
+            pass
+
+
+# planet/training/running.py
+class Run(object):
+    def __iter__(self):
+        """Iterate over the process function and finalize the log directory."""
+        args = self._init_fn and self._init_fn(self._logdir)
+
+
+        # planet/scripts/train.py
+        def start(logdir, args):
+            config = getattr(configs, args.config)(config, args.params)  # function args.config('default'/'debug') is defined in configs(configs.py). task is defined.
+            training.utility.collect_initial_episodes(config)
+
+            # planet/training/utility.py
+            def collect_initial_episodes(config):
+                control.random_episodes(...)
+
+                # planet/control/random_episodes.py
+                def random_episodes(env_ctor, num_episodes, output_dir=None):
+                    env = env_ctor()
+                    env = wrappers.CollectGymDataset(env, output_dir)
+                    obs = env.reset()
+                    while not done:
+                        obs, _, done, info = env.step(action)
+
+
+        for value in self._process_fn(self._logdir, *args):
+            if not self._running[0]:
+                break
+            yield value
+
+
+        # planet/scripts/train.py
+        def process(logdir, config, args):
+            dataset = tools.numpy_episodes(...)
+            for score in training.utility.train(training.define_model, dataset, logdir, config):
+                yield score
+
+            # planet/training/utility.py
+            def train(model_fn, datasets, logdir, config):
+                trainer = trainer_.Trainer(logdir, config=config)
+                score, summary = model_fn(data, trainer, config)     #  model_fn is training.define_model.
+                trainer.add_phase(...)
+                trainer.add_phase(...)
+                for score in trainer.iterate(config.max_steps):
+                    yield score
+
+                # planet/training/trainer.py
+                class Trainer(object):
+                    def iterate(self, max_step=None, sess=None):
+                        while True:   # MAIN LOOP
+                            global_step = sess.run(self._global_step)
+                            if max_step and global_step >= max_step:
+                                break
+                            summary, mean_score, global_step = sess.run(phase.op, phase.feed)
+                            if self._is_every_steps(phase_step, phase.batch_size, phase.report_every):
+                                tf.logging.info('Score {}.'.format(mean_score))
+                                yield mean_score

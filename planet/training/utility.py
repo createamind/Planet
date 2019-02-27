@@ -157,17 +157,17 @@ def train(model_fn, datasets, logdir, config):
   trainer = trainer_.Trainer(logdir, config=config)
   with tf.variable_scope('graph', use_resource=True):
     data = get_batch(datasets, trainer.phase, trainer.reset)
-    score, summary = model_fn(data, trainer, config)
+    score, summary = model_fn(data, trainer, config)         # model_fn is training.define_model
     message = 'Graph contains {} trainable variables.'
     tf.logging.info(message.format(tools.count_weights()))
-    if config.train_steps:
+    if config.train_steps: # 50000
       trainer.add_phase(
           'train', config.train_steps, score, summary,
           batch_size=config.batch_shape[0],
           report_every=None,
           log_every=config.train_log_every,
           checkpoint_every=config.train_checkpoint_every)
-    if config.test_steps:
+    if config.test_steps: # 100
       trainer.add_phase(
           'test', config.test_steps, score, summary,
           batch_size=config.batch_shape[0],
@@ -201,7 +201,7 @@ def compute_losses(
       loss = cell.divergence_from_states(posterior, global_prior, mask)
       loss = tf.reduce_sum(loss, 1) / tf.reduce_sum(tf.to_float(mask), 1)
     elif key in heads:
-      output = heads[key](features)
+      output = heads[key](features)   # decoder is used.
       loss = -tools.mask(output.log_prob(target[key]), mask)
     else:
       message = "Loss scale references unknown head '{}'."
@@ -287,7 +287,7 @@ def collect_initial_episodes(config):
   items = config.random_collects.items()
   items = sorted(items, key=lambda x: x[0])
   for name, params in items:
-    message = 'Collecting {}+ random episodes ({}).'
+    message = 'Collecting {}+ random episodes ({}).'  # e.g. Collecting 5+ random episodes (test-cheetah_run).
     tf.logging.info(message.format(params.num_episodes, name))
     control.random_episodes(
         params.task.env_ctor,

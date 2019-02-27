@@ -179,7 +179,7 @@ class Trainer(object):
       self._initialize_variables(
           sess, self._loaders, self._logdirs, self._checkpoints)
       sess.graph.finalize()
-      while True:
+      while True:                                   # MAIN LOOP
         global_step = sess.run(self._global_step)
         if max_step and global_step >= max_step:
           break
@@ -187,7 +187,7 @@ class Trainer(object):
         phase_step = epoch * phase.steps + steps_in
         if steps_in % phase.steps < phase.batch_size:
           message = '\n' + ('-' * 50) + '\n'
-          message += 'Epoch {} phase {} (phase step {}, global step {}).'
+          message += 'Epoch {} phase {} (phase step {}, global step {}).'   # e.g. Epoch 1 phase train (phase step 0, global step 0).
           tf.logging.info(message.format(
               epoch + 1, phase.name, phase_step, global_step))
         # Populate book keeping tensors.
@@ -205,7 +205,7 @@ class Trainer(object):
             self._store_checkpoint(sess, saver, global_step)
         if self._is_every_steps(
             phase_step, phase.batch_size, phase.report_every):
-          tf.logging.info('Score {}.'.format(mean_score))
+          tf.logging.info('Score {}.'.format(mean_score))            # for phase test e.g. Score 112.07756042480469.
           yield mean_score
         if summary and phase.writer:
           # We want smaller phases to catch up at the beginnig of each epoch so
