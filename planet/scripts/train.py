@@ -112,14 +112,14 @@ if __name__ == '__main__':
   boolean = lambda x: bool(['False', 'True'].index(x))
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--logdir', default=None)
+      '--logdir', default='./logcarla')
   parser.add_argument(
       '--num_runs', type=int, default=1)
   parser.add_argument(
       '--config', default='default',
       help='Select a configuration function from scripts/configs.py.')
   parser.add_argument(
-      '--params', default='{}', type=str,
+      '--params', default="{tasks: [carla]}", type=str,   # pendulum carla
       help='YAML formatted dictionary to be used by the config.')
   parser.add_argument(
       '--ping_every', type=int, default=0,

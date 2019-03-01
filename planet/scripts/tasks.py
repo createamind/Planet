@@ -111,7 +111,8 @@ def _dm_control_env(action_repeat, max_length, domain, task):
   return env
 
 
-
+# gym classic_control
+#=============================================================
 
 def pendulum(config, params):
   action_repeat = params.get('action_repeat', 2)
@@ -151,8 +152,7 @@ class DeepMindWrapper_gym(object):
       raise ValueError("Only render mode 'rgb_array' is supported.")
     del args  # Unused
     del kwargs  # Unused
-    return self._env.physics.render(
-        *self._render_size, camera_id=self._camera_id)
+    return self._env.render(mode='rgb_array',render_size=(100,100))[18:82,18:82]
 
 
 
@@ -160,6 +160,7 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
   import gym
   def env_ctor():
     env = gym.make(env_name)     # 'Pendulum-v0'
+    env = env.env                # 'remove TimeLimit wrapper
     env = DeepMindWrapper_gym(env, (64, 64))
     env = control.wrappers.ActionRepeat(env, action_repeat)
     env = control.wrappers.LimitDuration(env, max_length)
@@ -168,3 +169,67 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
     return env
   env = control.wrappers.ExternalProcess(env_ctor)
   return env
+
+
+# carla
+#=============================================================
+
+
+def carla(config, params):
+  action_repeat = params.get('action_repeat', 2)
+  max_length = 100 // action_repeat
+  state_components = [
+      'reward', 'state']
+  env_ctor = functools.partial(
+    _dm_control_env_carla, action_repeat, max_length, 'carla')
+  return Task('carla', env_ctor, max_length, state_components)
+
+
+class DeepMindWrapper_carla(object):
+  """Wraps a Gym environment into an interface for downstream process"""
+
+  metadata = {'render.modes': ['rgb_array']}
+  reward_range = (-np.inf, np.inf)
+
+  def __init__(self, env, render_size=(64, 64), camera_id=0):
+    self._env = env
+    self._render_size = render_size
+    self._camera_id = camera_id
+    self.observation_space = gym.spaces.Dict({'state':gym.spaces.Box(low=-1,high=1,shape=(1,))})
+
+  def __getattr__(self, name):
+    return getattr(self._env, name)
+
+  def step(self, action):
+    self.img, reward, done, info = self._env.step(action)
+    obs = {'state':np.array([0.0])}
+    return obs, reward, done, {}
+
+  def reset(self):
+    self.img = self._env.reset()
+    return {'state':np.array([0.0])}
+
+  def render(self, *args, **kwargs):
+    if kwargs.get('mode', 'rgb_array') != 'rgb_array':
+      raise ValueError("Only render mode 'rgb_array' is supported.")
+    del args  # Unused
+    del kwargs  # Unused
+    return self.img
+
+
+
+def _dm_control_env_carla(action_repeat, max_length, env_name):
+  assert env_name == 'carla'
+  from planet.envs.carla.env import CarlaEnv
+  def env_ctor():
+    env = CarlaEnv()
+    env = DeepMindWrapper_carla(env, (64, 64))
+    env = control.wrappers.ActionRepeat(env, action_repeat)
+    env = control.wrappers.LimitDuration(env, max_length)
+    env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
+    env = control.wrappers.ConvertTo32Bit(env)
+    return env
+  env = control.wrappers.ExternalProcess(env_ctor)
+  return env
+
+

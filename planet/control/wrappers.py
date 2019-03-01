@@ -232,13 +232,13 @@ class DeepMindWrapper(object):
     for key, value in self._env.observation_spec().items():
       components[key] = gym.spaces.Box(
           -np.inf, np.inf, value.shape, dtype=np.float32)
-    return gym.spaces.Dict(components)
+    return gym.spaces.Dict(components)    # components = {'position': Box(8,), 'velocity': Box(9,)}
 
   @property
   def action_space(self):
     action_spec = self._env.action_spec()
     return gym.spaces.Box(
-        action_spec.minimum, action_spec.maximum, dtype=np.float32)
+        action_spec.minimum, action_spec.maximum, dtype=np.float32)  # return: Box(6,)
 
   def step(self, action):
     time_step = self._env.step(action)
@@ -250,15 +250,15 @@ class DeepMindWrapper(object):
 
   def reset(self):
     time_step = self._env.reset()
-    return dict(time_step.observation)
-
+    return dict(time_step.observation)  # return: {'position': array([-0.10657491,  0.03791366, -0.01320079,  0.02708236, -0.05382936, 0.00701578, -0.07508983, -0.06376804]),
+                                        #          'velocity': array([-0.00637606, -0.00594656,  0.00852484, -0.00541404,  0.00263544, -0.01481148, -0.00058044, -0.03207024, -0.03622259])}
   def render(self, *args, **kwargs):
     if kwargs.get('mode', 'rgb_array') != 'rgb_array':
       raise ValueError("Only render mode 'rgb_array' is supported.")
     del args  # Unused
     del kwargs  # Unused
     return self._env.physics.render(
-        *self._render_size, camera_id=self._camera_id)
+        *self._render_size, camera_id=self._camera_id)   # return: {ndarray}(64,64,3)
 
 
 class LimitDuration(object):
@@ -276,6 +276,7 @@ class LimitDuration(object):
     if self._step is None:
       raise RuntimeError('Must reset environment.')
     observ, reward, done, info = self._env.step(action)
+    #print(done)
     self._step += 1
     if self._step >= self._duration:
       done = True
