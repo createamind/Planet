@@ -87,10 +87,10 @@ ENV_CONFIG = {
     "framestack": 1,  # note: only [1, 2] currently supported
     "early_terminate_on_collision": True,
     "reward_function": "custom2",
-    "render_x_res": 800,
-    "render_y_res": 600,
-    "x_res": 64,  # cv2.resize()
-    "y_res": 64,  # cv2.resize()
+    "render_x_res": 400, #800,
+    "render_y_res": 175, #600,
+    "x_res": 128, #64,  # cv2.resize()
+    "y_res": 128, #64,  # cv2.resize()
     "server_map": "/Game/Maps/Town02",
     "scenarios": TOWN2_ONE_CURVE_0, # TOWN2_STRAIGHT_0, # TOWN2_STRAIGHT_DYNAMIC_0, # TOWN2_ONE_CURVE_0, # [DEFAULT_SCENARIO], # [LANE_KEEP], #  TOWN2_ONE_CURVE, #    TOWN2_ALL, #
     "use_depth_camera": False,  # use depth instead of rgb.
@@ -271,6 +271,7 @@ class CarlaEnv(gym.Env):
             camera1.set_image_size(self.config["render_x_res"],
                                    self.config["render_y_res"])
             # camera1.set_position(30, 0, 130)
+            camera1.set(FOV=120)
             camera1.set_position(2.0, 0.0, 1.4)
             camera1.set_rotation(0.0, 0.0, 0.0)
 
@@ -281,6 +282,7 @@ class CarlaEnv(gym.Env):
                                self.config["render_y_res"])
         # camera2.set_position(30, 0, 130)
         # camera2.set_position(0.3, 0.0, 1.3)
+        camera2.set(FOV=120)
         camera2.set_position(2.0, 0.0, 1.4)
         camera2.set_rotation(0.0, 0.0, 0.0)
 
