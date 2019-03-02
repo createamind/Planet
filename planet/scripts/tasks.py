@@ -152,7 +152,7 @@ class DeepMindWrapper_gym(object):
       raise ValueError("Only render mode 'rgb_array' is supported.")
     del args  # Unused
     del kwargs  # Unused
-    return self._env.render(mode='rgb_array',render_size=(100,100))[18:82,18:82]
+    return self._env.render(mode='rgb_array',render_size=(100,100))[18:82,18:82]  # pendulum.py is modified.
 
 
 
@@ -177,7 +177,7 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
 
 def carla(config, params):
   action_repeat = params.get('action_repeat', 2)
-  max_length = 500 // action_repeat
+  max_length = 150 // action_repeat
   state_components = [
       'reward', 'state']
   env_ctor = functools.partial(
