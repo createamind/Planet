@@ -25,7 +25,7 @@ except Exception:
 import gym
 from gym.spaces import Box, Discrete, Tuple
 
-from .scenarios import DEFAULT_SCENARIO, LANE_KEEP, TOWN2_ALL, TOWN2_ONE_CURVE, TOWN2_ONE_CURVE_0, TOWN2_STRAIGHT_DYNAMIC_0, TOWN2_STRAIGHT_0
+from .scenarios import DEFAULT_SCENARIO, LANE_KEEP, TOWN2_ALL, TOWN2_ONE_CURVE, TOWN2_ONE_CURVE_0, TOWN2_ONE_CURVE_STRAIGHT_NAV,TOWN2_STRAIGHT_DYNAMIC_0, TOWN2_STRAIGHT_0
 
 # Set this where you want to save image outputs (or empty string to disable)
 CARLA_OUT_PATH = os.environ.get("CARLA_OUT", os.path.expanduser("~/carla_out"))
@@ -34,14 +34,14 @@ if CARLA_OUT_PATH and not os.path.exists(CARLA_OUT_PATH):
 
 # Set this to the path of your Carla binary
 SERVER_BINARY = os.environ.get("CARLA_SERVER",
-                               os.path.expanduser("/data/carla/CarlaUE4.sh"))  # /home/kychen/projects/carla/CarlaUE4.sh
+                               os.path.expanduser("/home/kychen/projects/carla/CarlaUE4.sh"))  # /data/carla/CarlaUE4.sh
 
 assert os.path.exists(SERVER_BINARY)
 if "CARLA_PY_PATH" in os.environ:
     sys.path.append(os.path.expanduser(os.environ["CARLA_PY_PATH"]))
 else:
     # TODO(ekl) switch this to the binary path once the planner is in master
-    sys.path.append(os.path.expanduser("/data/carla/PythonClient/"))  # /home/kychen/projects/carla/PythonClient/
+    sys.path.append(os.path.expanduser("/home/kychen/projects/carla/PythonClient/"))  # /data/carla/PythonClient/
 
 try:
     from carla.client import CarlaClient
@@ -92,7 +92,7 @@ ENV_CONFIG = {
     "x_res": 128, #64,  # cv2.resize()
     "y_res": 128, #64,  # cv2.resize()
     "server_map": "/Game/Maps/Town02",
-    "scenarios": TOWN2_ONE_CURVE_0, # TOWN2_STRAIGHT_0, # TOWN2_STRAIGHT_DYNAMIC_0, # TOWN2_ONE_CURVE_0, # [DEFAULT_SCENARIO], # [LANE_KEEP], #  TOWN2_ONE_CURVE, #    TOWN2_ALL, #
+    "scenarios": TOWN2_ONE_CURVE_STRAIGHT_NAV, #TOWN2_ONE_CURVE_0, # TOWN2_STRAIGHT_0, # TOWN2_STRAIGHT_DYNAMIC_0, #  [DEFAULT_SCENARIO], # [LANE_KEEP], #  TOWN2_ONE_CURVE, #    TOWN2_ALL, #
     "use_depth_camera": False,  # use depth instead of rgb.
     "discrete_actions": False,
     "squash_action_logits": False,

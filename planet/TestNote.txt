@@ -1,0 +1,8 @@
+
+
+--logdir
+
+./logcarla1  64*64*3;    5 bits   action_repeat 2;
+./logcarla2  64*64*3;    8 bits   action_repeat 2;
+./logcarla3  128*128*3;  8 bits   action_repeat 3;
+./logcarla4  128*128*3;  8 bits;  action_repeat 2;

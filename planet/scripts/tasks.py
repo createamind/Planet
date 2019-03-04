@@ -177,6 +177,7 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
 
 def carla(config, params):
   action_repeat = params.get('action_repeat', 2)
+  print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
   max_length = 150 // action_repeat
   state_components = [
       'reward', 'state']
