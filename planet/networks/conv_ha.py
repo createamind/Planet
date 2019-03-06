@@ -27,12 +27,16 @@ def encoder(obs):
   """Extract deterministic features from an observation."""
   kwargs = dict(strides=2, activation=tf.nn.relu)
   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())   # (50,50,64,64,3) reshape to (2500,64,64,3)
-  hidden = tf.layers.conv2d(hidden, 16, 4, **kwargs) #####
-  hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 64, 4, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 128, 4, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 256, 4, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs) #####
+  # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
+#   print(hidden)
+  hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
+  # print(hidden)
   hidden = tf.layers.flatten(hidden)
+  
   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
       np.prod(hidden.shape[1:].as_list())])
@@ -44,14 +48,16 @@ def decoder(state, data_shape):
   kwargs = dict(strides=2, activation=tf.nn.relu)
   hidden = tf.layers.dense(state, 1024, None)
   hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
-  hidden = tf.layers.conv2d_transpose(hidden, 256, 5, **kwargs) #####
-  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs) 
   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 3, 6, strides=2)
+  # hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
+  # print(hidden)
+  hidden = tf.layers.conv2d_transpose(hidden, 3, 9, strides=3)
   mean = hidden
+  # print(mean)
   # assert mean.shape[1:].as_list() == [64, 64, 3], mean.shape
-  assert mean.shape[1:].as_list() == [128, 128, 3], mean.shape
+  assert mean.shape[1:].as_list() == [96, 96, 3], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))

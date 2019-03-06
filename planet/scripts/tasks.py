@@ -192,7 +192,7 @@ class DeepMindWrapper_carla(object):
   metadata = {'render.modes': ['rgb_array']}
   reward_range = (-np.inf, np.inf)
 
-  def __init__(self, env, render_size=(128, 128), camera_id=0):
+  def __init__(self, env, render_size=(96, 96), camera_id=0):
     self._env = env
     self._render_size = render_size
     self._camera_id = camera_id
@@ -224,10 +224,10 @@ def _dm_control_env_carla(action_repeat, max_length, env_name):
   from planet.envs.carla.env import CarlaEnv
   def env_ctor():
     env = CarlaEnv()
-    env = DeepMindWrapper_carla(env, (128, 128))
+    env = DeepMindWrapper_carla(env, (96, 96))
     env = control.wrappers.ActionRepeat(env, action_repeat)
     env = control.wrappers.LimitDuration(env, max_length)
-    env = control.wrappers.PixelObservations(env, (128, 128), np.uint8, 'image')
+    env = control.wrappers.PixelObservations(env, (96, 96), np.uint8, 'image')
     env = control.wrappers.ConvertTo32Bit(env)
     return env
   env = control.wrappers.ExternalProcess(env_ctor)
