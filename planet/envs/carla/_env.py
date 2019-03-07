@@ -1,819 +1,386 @@
-"""OpenAI gym environment for Carla. Run this file for a demo."""
+#!/usr/bin/env python
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from datetime import datetime
-import atexit
-import cv2
+import glob
 import os
-import json
-import random
-import signal
-import subprocess
 import sys
-import time
-import traceback
-
-import numpy as np
+import re
+import weakref
 try:
-    import scipy.misc
-except Exception:
+    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+except IndexError:
     pass
 
+import carla
+import pygame
+import random
+import time
+import subprocess
+from carla import ColorConverter as cc
+import math
+import matplotlib.pyplot as plt
+import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
-
-from .scenarios import DEFAULT_SCENARIO, LANE_KEEP, TOWN2_ALL, TOWN2_ONE_CURVE, TOWN2_ONE_CURVE_0, TOWN2_ONE_CURVE_STRAIGHT_NAV,TOWN2_STRAIGHT_DYNAMIC_0, TOWN2_STRAIGHT_0
-
-# Set this where you want to save image outputs (or empty string to disable)
-CARLA_OUT_PATH = os.environ.get("CARLA_OUT", os.path.expanduser("~/carla_out"))
-if CARLA_OUT_PATH and not os.path.exists(CARLA_OUT_PATH):
-    os.makedirs(CARLA_OUT_PATH)
-
-# Set this to the path of your Carla binary
-SERVER_BINARY = os.environ.get("CARLA_SERVER",
-                               os.path.expanduser("/data/carla/CarlaUE4.sh"))  # /data/carla/CarlaUE4.sh
-
-assert os.path.exists(SERVER_BINARY)
-if "CARLA_PY_PATH" in os.environ:
-    sys.path.append(os.path.expanduser(os.environ["CARLA_PY_PATH"]))
-else:
-    # TODO(ekl) switch this to the binary path once the planner is in master
-    sys.path.append(os.path.expanduser("/data/carla/PythonClient/"))  # /data/carla/PythonClient/
-
-try:
-    from carla.client import CarlaClient
-    from carla.sensor import Camera
-    from carla.settings import CarlaSettings
-    from carla.planner.planner import Planner, REACH_GOAL, GO_STRAIGHT, \
-        TURN_RIGHT, TURN_LEFT, LANE_FOLLOW
-except Exception as e:
-    print("Failed to import Carla python libs, try setting $CARLA_PY_PATH")
-    raise e
-
-# Carla planner commands
-COMMANDS_ENUM = {
-    REACH_GOAL: "REACH_GOAL",
-    GO_STRAIGHT: "GO_STRAIGHT",
-    TURN_RIGHT: "TURN_RIGHT",
-    TURN_LEFT: "TURN_LEFT",
-    LANE_FOLLOW: "LANE_FOLLOW",
-}
-
-# Mapping from string repr to one-hot encoding index to feed to the model
-COMMAND_ORDINAL = {
-    "REACH_GOAL": 0,
-    "GO_STRAIGHT": 1,
-    "TURN_RIGHT": 2,
-    "TURN_LEFT": 3,
-    "LANE_FOLLOW": 4,
-}
-
-# Number of retries if the server doesn't respond
-RETRIES_ON_ERROR = 5
-
-# Dummy Z coordinate to use when we only care about (x, y)
-GROUND_Z = 0.22
-
 # Default environment configuration
 ENV_CONFIG = {
-    "log_images": False,  # log images in _read_observation().
-    "convert_images_to_video": False,  # convert log_images to videos. when "verbose" is True.
-    "verbose": False,    # print measurement information; write out measurement json file.
-
-    "enable_planner": False,
-    "framestack": 1,  # note: only [1, 2] currently supported
+    "framestack": 1,
+    "enable_planner": True,
     "early_terminate_on_collision": True,
-    "reward_function": "custom2",
-    "render_x_res": 400, #800,
-    "render_y_res": 175, #600,
-    "x_res": 128, #64,  # cv2.resize()
-    "y_res": 128, #64,  # cv2.resize()
-    "server_map": "/Game/Maps/Town02",
-    "scenarios": TOWN2_ONE_CURVE_STRAIGHT_NAV, #TOWN2_ONE_CURVE_0, # TOWN2_STRAIGHT_0, # TOWN2_STRAIGHT_DYNAMIC_0, #  [DEFAULT_SCENARIO], # [LANE_KEEP], #  TOWN2_ONE_CURVE, #    TOWN2_ALL, #
-    "use_depth_camera": False,  # use depth instead of rgb.
-    "discrete_actions": True,
-    "squash_action_logits": False,
+    "reward_function": "custom",
+    "x_res": 96,
+    "y_res": 96,
+    "discrete_actions": False,
+    "encode": True,
+    "planet": True,
 }
-
-DISCRETE_ACTIONS = {
-    # coast
-    0: [0.0, 0.0],
-    # turn left
-    1: [0.0, -0.5],
-    # turn right
-    2: [0.0, 0.5],
-    # forward
-    3: [1.0, 0.0],
-    # brake
-    4: [-0.5, 0.0],
-    # forward left
-    5: [1.0, -0.5],
-    # forward right
-    6: [1.0, 0.5],
-    # brake left
-    7: [-0.5, -0.5],
-    # brake right
-    8: [-0.5, 0.5],
-}
-
-live_carla_processes = set()  # Carla Server
-
-
-def cleanup():
-    print("Killing live carla processes", live_carla_processes)
-    for pgid in live_carla_processes:
-        os.killpg(pgid, signal.SIGKILL)
-
-
-atexit.register(cleanup)
 
 
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
         self.config = config
-        self.city = self.config["server_map"].split("/")[-1]
+        self.command = {
+            "stop": 1,
+            "lane_keep": 2,
+            "turn_right": 3,
+            "turn_left": 4,
+        }
+        self.DISCRETE_ACTIONS = {
+            # coast
+            0: [0.0, 0.0],
+            # turn left
+            1: [0.0, -0.5],
+            # turn right
+            2: [0.0, 0.5],
+            # forward
+            3: [1.0, 0.0],
+            # brake
+            4: [-0.5, 0.0],
+            # forward left
+            5: [1.0, -0.5],
+            # forward right
+            6: [1.0, 0.5],
+            # brake left
+            7: [-0.5, -0.5],
+            # brake right
+            8: [-0.5, 0.5],
+        }
+
         if self.config["enable_planner"]:
-            self.planner = Planner(self.city)
+            pass
 
-        # The Action Space
         if config["discrete_actions"]:
-            self.action_space = Discrete(len(DISCRETE_ACTIONS))  # It will be transformed to continuous 2D action.
+            self.action_space = Discrete(len(self.command))
         else:
-            self.action_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)   # 2D action.
+            self.action_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)
 
-        if config["use_depth_camera"]:
-            image_space = Box(
-                -1.0,
-                1.0,
-                shape=(config["y_res"], config["x_res"],
-                       1 * config["framestack"]),
-                dtype=np.float32)
-        else:
-            image_space = Box(
-                0,
-                255,
-                shape=(config["y_res"], config["x_res"],
-                       3 * config["framestack"]),
-                dtype=np.uint8)
-
-        # The Observation Space
-        self.observation_space = Tuple(
-            [
-                image_space,
-                Discrete(len(COMMANDS_ENUM)),  # next_command
-                Box(-128.0, 128.0, shape=(2, ), dtype=np.float32)  # forward_speed, dist to goal
-            ])
-
-        # TODO(ekl) this isn't really a proper gym spec
+        image_space = Box(
+            0,
+            255,
+            shape=(config["y_res"], config["x_res"],
+                   3 * config["framestack"]),
+            dtype=np.uint8)
+        self.observation_space = image_space
+        # environment config
         self._spec = lambda: None
-        self._spec.id = "Carla-v0"
-
-        self.server_port = None
-        self.server_process = None
-        self.client = None
+        self._spec.id = "Carla_v0"
+        # experiment config
         self.num_steps = 0
         self.total_reward = 0
-        self.prev_measurement = None
-        self.prev_image = None
         self.episode_id = None
         self.measurements_file = None
         self.weather = None
-        self.scenario = None
-        self.start_pos = None
-        self.end_pos = None
-        self.start_coord = None
-        self.end_coord = None
-        self.last_obs = None
-
-    def init_server(self):
-        print("Initializing new Carla server...")
-        # Create a new server process and start the client.
-        self.server_port = random.randint(10000, 60000)
-        self.server_process = subprocess.Popen(
-            [
-                SERVER_BINARY, self.config["server_map"], "-windowed",
-                "-ResX=400", "-ResY=300", "-carla-server", "-benchmark -fps=10",   # "-benchmark -fps=10": to run the simulation at a fixed time-step of 0.1 seconds
-                "-carla-world-port={}".format(self.server_port)
-            ],
-            preexec_fn=os.setsid,
-            stdout=open(os.devnull, "w"))         #  ResourceWarning: unclosed file <_io.TextIOWrapper name='/dev/null' mode='w' encoding='UTF-8'>
-        live_carla_processes.add(os.getpgid(self.server_process.pid))
-
-        for i in range(RETRIES_ON_ERROR):
+        # actors
+        self.actor_list = []          # save actor list for destroying them after finish
+        self.vehicle = None
+        self.collision_sensor = None
+        self.camera_rgb = None
+        self.invasion_sensor = None
+        self.camera_segmentation = None
+        self.camera_depth = None
+        # states and data
+        self._history_info = []       # info history
+        self._history_collision = []  # collision history
+        self._history_invasion = []   # invasion history
+        self._image_depth = []        # save a list of depth image
+        self._image_rgb = []          # save a list of rgb image
+        self._image_segmentation = []
+        self._image_gray = []
+        # initialize our world
+        self.server_port = 2000
+        self.world = None
+        connect_fail_times = 0
+        while self.world is None:
             try:
-                self.client = CarlaClient("localhost", self.server_port)
-                return self.client.connect()
+                self.client = carla.Client("localhost", self.server_port)
+                self.client.set_timeout(2.0)
+                self.world = self.client.get_world()
+                self.map = self.world.get_map()
             except Exception as e:
-                print("Error connecting: {}, attempt {}".format(e, i))
+                connect_fail_times += 1
+                print("Error connecting: {}, attempt {}".format(e, connect_fail_times))
                 time.sleep(2)
+            if connect_fail_times > 10:
+                break
 
-    def clear_server_state(self):
-        print("Clearing Carla server state")
-        try:
-            if self.client:
-                self.client.disconnect()
-                self.client = None
-        except Exception as e:
-            print("Error disconnecting client: {}".format(e))
-            pass
-        if self.server_process:
-            pgid = os.getpgid(self.server_process.pid)
-            os.killpg(pgid, signal.SIGKILL)
-            live_carla_processes.remove(pgid)
-            self.server_port = None
-            self.server_process = None
+        # destroy actors in the world before we start new episode
+        for a in self.world.get_actors().filter('vehicle.*'):
+            try:
+                a.destroy()
+            except:
+                pass
+        for a in self.world.get_actors().filter('sensor.*'):
+            try:
+                a.destroy()
+            except:
+                pass
 
-    def __del__(self):  # the __del__ method will be called when the instance of the class is deleted.(memory is freed.)
-        self.clear_server_state()
+    def restart(self):
+        """restart world and add sensors"""
+        world = self.world
+
+        bp_library = world.get_blueprint_library()
+        # setup vehicle
+        fail_time = 0
+        while self.vehicle is None:  
+           #  world = self.world 
+            try:
+                #world = self.world
+                #bp_library = world.get_blueprint_library()
+                spawn_point = random.choice(world.get_map().get_spawn_points())
+                bp_vehicle = bp_library.find('vehicle.lincoln.mkz2017')
+                bp_vehicle.set_attribute('role_name', 'hero')
+                self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
+            except:
+                time.sleep(0.1)
+                fail_time += 1
+            if fail_time > 20:
+                print("fail to connect", fail_time)
+                break
+        self.actor_list.append(self.vehicle)
+
+        # setup rgb camera
+        camera_transform = carla.Transform(carla.Location(x=0.7, y=0, z=2))
+        camera_rgb = bp_library.find('sensor.camera.rgb')
+        camera_rgb.set_attribute('fov', '120')
+        self.camera_rgb = world.spawn_actor(camera_rgb, camera_transform, attach_to=self.vehicle)
+        self.actor_list.append(self.camera_rgb)
+
+        # setup depth camera
+        camera_depth = bp_library.find('sensor.camera.depth')
+        camera_depth.set_attribute('fov', '120')
+        self.camera_depth = world.spawn_actor(camera_depth, camera_transform, attach_to=self.vehicle)
+        self.actor_list.append(self.camera_depth)
+
+        # setup segmentation camera
+        camera_segmentation = bp_library.find('sensor.camera.semantic_segmentation')
+        camera_segmentation.set_attribute('fov', '120')
+        self.camera_segmentation = world.spawn_actor(camera_segmentation, camera_transform, attach_to=self.vehicle)
+        self.actor_list.append(self.camera_segmentation)
+
+        # add collision sensors
+        bp = bp_library.find('sensor.other.collision')
+        self.collision_sensor = world.spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
+        self.actor_list.append(self.collision_sensor)
+
+        # add invasion sensors
+        bp = bp_library.find('sensor.other.lane_detector')
+        self.invasion_sensor = world.spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
+        self.actor_list.append(self.invasion_sensor)
 
     def reset(self):
-        error = None
-        for _ in range(RETRIES_ON_ERROR):
-            try:
-                if not self.server_process:
-                    self.init_server()
-                return self._reset()
-            except Exception as e:
-                print("Error during reset: {}".format(traceback.format_exc()))
-                self.clear_server_state()
-                error = e
-        raise error
+        self.restart()
+        weak_self = weakref.ref(self)
+        # set invasion sensor
+        self.invasion_sensor.listen(lambda event: self._parse_invasion(weak_self, event))
+        # set collision sensor
+        self.collision_sensor.listen(lambda event: self._parse_collision(weak_self, event))
+        # set rgb camera sensor
+        self.camera_rgb.listen(lambda image: self._parse_image(weak_self, image,
+                                                               carla.ColorConverter.Raw, 'rgb'))
+        # set depth camera sensor
+        self.camera_depth.listen(lambda image: self._parse_image(weak_self, image,
+                                                                 carla.ColorConverter.LogarithmicDepth, 'depth'))
+        # set segmentation camera sensor
+        self.camera_segmentation.listen(lambda image: self._parse_image(weak_self, image,
+                                                                        carla.ColorConverter.Raw, 'seg'))
 
-    def _reset(self):
-        self.num_steps = 0
-        self.total_reward = 0
-        self.prev_measurement = None
-        self.prev_image = None
-        self.episode_id = datetime.today().strftime("%Y-%m-%d_%H-%M-%S_%f")
-        self.measurements_file = None
-
-        # Create a CarlaSettings object. This object is a wrapper around
-        # the CarlaSettings.ini file. Here we set the configuration we
-        # want for the new episode.
-        settings = CarlaSettings()
-        self.scenario = random.choice(self.config["scenarios"])
-        assert self.scenario["city"] == self.city, (self.scenario, self.city)
-        self.weather = random.choice(self.scenario["weather_distribution"])
-        settings.set(
-            SynchronousMode=True,
-            # ServerTimeOut=10000, # CarlaSettings: no key named 'ServerTimeOut'
-            SendNonPlayerAgentsInfo=True,
-            NumberOfVehicles=self.scenario["num_vehicles"],
-            NumberOfPedestrians=self.scenario["num_pedestrians"],
-            WeatherId=self.weather)
-        settings.randomize_seeds()
-
-        if self.config["use_depth_camera"]:
-            camera1 = Camera("CameraDepth", PostProcessing="Depth")
-            camera1.set_image_size(self.config["render_x_res"],
-                                   self.config["render_y_res"])
-            # camera1.set_position(30, 0, 130)
-            camera1.set(FOV=120)
-            camera1.set_position(2.0, 0.0, 1.4)
-            camera1.set_rotation(0.0, 0.0, 0.0)
-
-            settings.add_sensor(camera1)
-
-        camera2 = Camera("CameraRGB")
-        camera2.set_image_size(self.config["render_x_res"],
-                               self.config["render_y_res"])
-        # camera2.set_position(30, 0, 130)
-        # camera2.set_position(0.3, 0.0, 1.3)
-        camera2.set(FOV=120)
-        camera2.set_position(2.0, 0.0, 1.4)
-        camera2.set_rotation(0.0, 0.0, 0.0)
-
-        settings.add_sensor(camera2)
-
-        # Setup start and end positions
-        scene = self.client.load_settings(settings)
-        positions = scene.player_start_spots
-        self.start_pos = positions[self.scenario["start_pos_id"]]
-        self.end_pos = positions[self.scenario["end_pos_id"]]
-        self.start_coord = [
-            self.start_pos.location.x // 100, self.start_pos.location.y // 100
-        ]
-        self.end_coord = [
-            self.end_pos.location.x // 100, self.end_pos.location.y // 100
-        ]
-        print("Start pos {} ({}), end {} ({})".format(
-            self.scenario["start_pos_id"], self.start_coord,
-            self.scenario["end_pos_id"], self.end_coord))
-
-        # Notify the server that we want to start the episode at the
-        # player_start index. This function blocks until the server is ready
-        # to start the episode.
-        print("Starting new episode...")
-        self.client.start_episode(self.scenario["start_pos_id"])
-
-        # Process observations: self._read_observation() returns image and py_measurements.
-        image, py_measurements = self._read_observation()
-        self.prev_measurement = py_measurements
-        return self.encode_obs(self.preprocess_image(image), py_measurements)
-
-    def encode_obs(self, image, py_measurements):
-        assert self.config["framestack"] in [1, 2]
-        prev_image = self.prev_image
-        self.prev_image = image
-        if prev_image is None:
-            prev_image = image
-        if self.config["framestack"] == 2:
-            image = np.concatenate([prev_image, image], axis=2)
-        # obs = (image, COMMAND_ORDINAL[py_measurements["next_command"]], [
-        #     py_measurements["forward_speed"],
-        #     py_measurements["distance_to_goal"]
-        # ])
-        obs = image
-        self.last_obs = obs
+        while len(self._image_rgb) < 2:
+            print("resetting")
+            time.sleep(0.1)
+        if ENV_CONFIG["encode"]:   # stack gray depth segmentation
+            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis]*21], axis=2)
+        else:
+            obs = self._image_rgb[-1]
         return obs
 
+    @staticmethod
+    def _parse_image(weak_self, image, cc, use):
+        """convert BGRA to RGB"""
+        self = weak_self()
+        if not self:
+            return
+
+        def convert(cc):
+            image.convert(cc)
+            # image.save_to_disk('_out/%08d' % image.frame_number)
+            array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+            array = np.reshape(array, (image.height, image.width, 4))
+            array = array[:, :, -2:-5:-1]
+            return array
+
+        if use == 'rgb':
+            array = convert(cc)
+            self._image_rgb.append(array)
+            self._image_gray.append(0.45*array[:, :, 0] +
+                                    0.45*array[:, :, 1] +
+                                    0.1*array[:, :, 2])
+            if len(self._image_gray) > 16:
+                self._image_gray.pop(0)
+            if len(self._image_rgb) > 16:
+                self._image_rgb.pop(0)
+        if use == 'depth':
+            array = convert(cc)
+            # it is the same in each channel of depth image
+            self._image_depth.append(array[:, :, 0])
+            if len(self._image_depth) > 16:
+                self._image_depth.pop(0)
+        if use == 'seg':
+            array = convert(cc)
+            # segmentation information encode in red channel
+            self._image_segmentation.append(array[:, :, 0])
+            if len(self._image_segmentation) > 16:
+                self._image_segmentation.pop(0)
+
+
+    @staticmethod
+    def _parse_collision(weak_self, event):
+        self = weak_self()
+        if not self:
+            return
+        impulse = event.normal_impulse
+        intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
+        self._history_collision.append((event.frame_number, intensity))
+        if len(self._history_collision) > 16:
+            self._history_collision.pop(0)
+
+    @staticmethod
+    def _parse_invasion(weak_self, event):
+        self = weak_self()
+        if not self:
+            return
+        # print(str(event.crossed_lane_markings)) [carla.libcarla.LaneMarking.Solid]
+        text = ['%r' % str(x).split()[-1] for x in set(event.crossed_lane_markings)]
+        # S for Solid B for Broken
+        self._history_invasion.append(text[0][1])
+        if len(self._history_invasion) > 16:
+            self._history_invasion.pop(0)
+
     def step(self, action):
-        try:
-            obs = self._step(action)
-            return obs
-        except Exception:
-            print("Error during step, terminating episode early",
-                  traceback.format_exc())
-            self.clear_server_state()
-            return (self.last_obs, 0.0, True, {})
 
-    def _step(self, action):
+        def compute_reward(info, prev_info):
+            reward = 0.0
+            reward += np.clip(info["speed"], 0, 40)/5
+            reward -= 100 * int(len(self._history_collision) > 0)
+            new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
+            if 'S' in new_invasion:     # go across solid lane
+                reward -= 6
+            elif 'B' in new_invasion:   # go across broken lane
+                reward -= 3
+            return reward
+
+        done = False
         if self.config["discrete_actions"]:
-            action = DISCRETE_ACTIONS[int(action)]  # Carla action is 2D.
-        assert len(action) == 2, "Invalid action {}".format(action)
-        if self.config["squash_action_logits"]:
-            forward = 2 * float(sigmoid(action[0]) - 0.5)
-            throttle = float(np.clip(forward, 0, 1))
-            brake = float(np.abs(np.clip(forward, -1, 0)))
-            steer = 2 * float(sigmoid(action[1]) - 0.5)
+            action = self.DISCRETE_ACTIONS[int(action)]
+
+        throttle = float(np.clip(action[0], 0, 1))
+        brake = float(np.abs(np.clip(action[0], -1, 0)))
+        steer = float(np.clip(action[1], -1, 1))
+        self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
+        # get image
+        time.sleep(0.1)
+
+        t = self.vehicle.get_transform()
+        v = self.vehicle.get_velocity()
+        c = self.vehicle.get_control()
+        acceleration = self.vehicle.get_acceleration()
+        if len(self._history_invasion) > 0:
+            invasion = self._history_invasion[-1]
         else:
-            throttle = float(np.clip(action[0], 0, 1))
-            brake = float(np.abs(np.clip(action[0], -1, 0)))
-            steer = float(np.clip(action[1], -1, 1))
+            invasion = []
+        info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
+                "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
+                "location_x": t.location.x,
+                "location_y": t.location.y,
+                "Throttle": c.throttle,
+                "Steer": c.steer,
+                "Brake": c.brake,
+                "command": self.planner(),
+                "lane_invasion": invasion,
+                "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
+                "is_at_traffic_light": self.vehicle.is_at_traffic_light(),
+                "speed_limit": self.vehicle.get_speed_limit()}       # True False
 
-        # reverse and hand_brake are disabled.
-        reverse = False
-        hand_brake = False
+        if len(self._history_info) == 0:
+            self._history_info.append(info)
+        reward = compute_reward(info, self._history_info[-1])
+        self._history_info.append(info)
+        if len(self._history_info) > 16:
+            self._history_info.pop(0)
+        # early stop
+        if len(self._history_collision) > 0:
+            # print("collisin length", len(self._history_collision))
+            done = True
+        elif reward < -100:
+            done = True
 
-        if self.config["verbose"]:
-            print("steer", steer, "throttle", throttle, "brake", brake,
-                  "reverse", reverse)
-
-        self.client.send_control(
-            steer=steer,
-            throttle=throttle,
-            brake=brake,
-            hand_brake=hand_brake,
-            reverse=reverse)
-
-        # Process observations: self._read_observation() returns image and py_measurements.
-        image, py_measurements = self._read_observation()
-        if self.config["verbose"]:
-            print("Next command", py_measurements["next_command"])
-        if type(action) is np.ndarray:
-            py_measurements["action"] = [float(a) for a in action]
+        if ENV_CONFIG["encode"]:   # stack gray depth segmentation
+            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
         else:
-            py_measurements["action"] = action
-        py_measurements["control"] = {
-            "steer": steer,
-            "throttle": throttle,
-            "brake": brake,
-            "reverse": reverse,
-            "hand_brake": hand_brake,
-        }
-
-        # compute reward
-        reward = compute_reward(self, self.prev_measurement, py_measurements)
-
-        self.total_reward += reward
-        py_measurements["reward"] = reward
-        py_measurements["total_reward"] = self.total_reward
-
-        # done or not
-        done = False
-        # done = (self.num_steps > self.scenario["max_steps"]
-        #         or py_measurements["next_command"] == "REACH_GOAL" or py_measurements["intersection_offroad"] or py_measurements["intersection_otherlane"]
-        #         or (self.config["early_terminate_on_collision"]
-        #             and collided_done(py_measurements)))
-
-        py_measurements["done"] = done
-        self.prev_measurement = py_measurements
-
-        # Write out measurements to file
-        if self.config["verbose"] and CARLA_OUT_PATH:
-            if not self.measurements_file:
-                self.measurements_file = open(
-                    os.path.join(
-                        CARLA_OUT_PATH,
-                        "measurements_{}.json".format(self.episode_id)), "w")
-            self.measurements_file.write(json.dumps(py_measurements))
-            self.measurements_file.write("\n")
-            if done:
-                self.measurements_file.close()
-                self.measurements_file = None
-                if self.config["convert_images_to_video"]:
-                    self.images_to_video()
-
-        self.num_steps += 1
-        image = self.preprocess_image(image)
-        return (self.encode_obs(image, py_measurements), reward, done,
-                py_measurements)
-
-    def images_to_video(self):
-        videos_dir = os.path.join(CARLA_OUT_PATH, "Videos")
-        if not os.path.exists(videos_dir):
-            os.makedirs(videos_dir)
-        ffmpeg_cmd = (
-            "ffmpeg -loglevel -8 -r 60 -f image2 -s {x_res}x{y_res} "
-            "-start_number 0 -i "
-            "{img}_%04d.jpg -vcodec libx264 {vid}.mp4 && rm -f {img}_*.jpg "
-        ).format(
-            x_res=self.config["render_x_res"],
-            y_res=self.config["render_y_res"],
-            vid=os.path.join(videos_dir, self.episode_id),
-            img=os.path.join(CARLA_OUT_PATH, "CameraRGB", self.episode_id))
-        print("Executing ffmpeg command", ffmpeg_cmd)
-        subprocess.call(ffmpeg_cmd, shell=True)
-
-    def preprocess_image(self, image):
-        if self.config["use_depth_camera"]:
-            assert self.config["use_depth_camera"]
-            data = (image.data - 0.5) * 2
-            data = data.reshape(self.config["render_y_res"],
-                                self.config["render_x_res"], 1)
-            data = cv2.resize(
-                data, (self.config["x_res"], self.config["y_res"]),
-                interpolation=cv2.INTER_AREA)
-            data = np.expand_dims(data, 2)
-        else:
-            data = image.data.reshape(self.config["render_y_res"],
-                                      self.config["render_x_res"], 3)
-            data = cv2.resize(
-                data, (self.config["x_res"], self.config["y_res"]),
-                interpolation=cv2.INTER_AREA)
-            data = (data.astype(np.float32) - 128) / 128
-        return data
-
-    def _read_observation(self):
-        # Read the data produced by the server this frame.
-        measurements, sensor_data = self.client.read_data()
-
-        # Print some of the measurements.
-        if self.config["verbose"]:
-            print_measurements(measurements)
-
-        observation = None
-        if self.config["use_depth_camera"]:
-            camera_name = "CameraDepth"
-        else:
-            camera_name = "CameraRGB"
-        for name, image in sensor_data.items():
-            if name == camera_name:
-                observation = image
-
-        cur = measurements.player_measurements
-
-        if self.config["enable_planner"]:
-            next_command = COMMANDS_ENUM[self.planner.get_next_command(
-                [cur.transform.location.x, cur.transform.location.y, GROUND_Z],
-                [
-                    cur.transform.orientation.x, cur.transform.orientation.y,
-                    GROUND_Z
-                ],
-                [self.end_pos.location.x, self.end_pos.location.y, GROUND_Z], [
-                    self.end_pos.orientation.x, self.end_pos.orientation.y,
-                    GROUND_Z
-                ])]
-        else:
-            next_command = "LANE_FOLLOW"
-
-        if next_command == "REACH_GOAL":
-            distance_to_goal = 0.0  # avoids crash in planner
-        elif self.config["enable_planner"]:
-            distance_to_goal = self.planner.get_shortest_path_distance([
-                cur.transform.location.x, cur.transform.location.y, GROUND_Z
-            ], [
-                cur.transform.orientation.x, cur.transform.orientation.y,
-                GROUND_Z
-            ], [self.end_pos.location.x, self.end_pos.location.y, GROUND_Z], [
-                self.end_pos.orientation.x, self.end_pos.orientation.y,
-                GROUND_Z
-            ]) / 100
-        else:
-            distance_to_goal = -1
-
-        distance_to_goal_euclidean = float(
-            np.linalg.norm([
-                cur.transform.location.x - self.end_pos.location.x,
-                cur.transform.location.y - self.end_pos.location.y
-            ]) / 100)
-
-        py_measurements = {
-            "episode_id": self.episode_id,
-            "step": self.num_steps,
-            "x": cur.transform.location.x,
-            "y": cur.transform.location.y,
-            "x_orient": cur.transform.orientation.x,
-            "y_orient": cur.transform.orientation.y,
-            "forward_speed": cur.forward_speed,
-            "distance_to_goal": distance_to_goal,
-            "distance_to_goal_euclidean": distance_to_goal_euclidean,
-            "collision_vehicles": cur.collision_vehicles,
-            "collision_pedestrians": cur.collision_pedestrians,
-            "collision_other": cur.collision_other,
-            "intersection_offroad": cur.intersection_offroad,
-            "intersection_otherlane": cur.intersection_otherlane,
-            "weather": self.weather,
-            "map": self.config["server_map"],
-            "start_coord": self.start_coord,
-            "end_coord": self.end_coord,
-            "current_scenario": self.scenario,
-            "x_res": self.config["x_res"],
-            "y_res": self.config["y_res"],
-            "num_vehicles": self.scenario["num_vehicles"],
-            "num_pedestrians": self.scenario["num_pedestrians"],
-            "max_steps": self.scenario["max_steps"],
-            "next_command": next_command,
-        }
-
-        if CARLA_OUT_PATH and self.config["log_images"]:
-            for name, image in sensor_data.items():
-                out_dir = os.path.join(CARLA_OUT_PATH, name)
-                if not os.path.exists(out_dir):
-                    os.makedirs(out_dir)
-                out_file = os.path.join(
-                    out_dir, "{}_{:>04}.jpg".format(self.episode_id,
-                                                    self.num_steps))
-                scipy.misc.imsave(out_file, image.data)
-
-        assert observation is not None, sensor_data
-        return observation, py_measurements
-
-
-def compute_reward_corl2017(env, prev, current):
-    reward = 0.0
-
-    cur_dist = current["distance_to_goal"]
-
-    prev_dist = prev["distance_to_goal"]
-
-    if env.config["verbose"]:
-        print("Cur dist {}, prev dist {}".format(cur_dist, prev_dist))
-
-    # Distance travelled toward the goal in m
-    reward += np.clip(prev_dist - cur_dist, -10.0, 10.0)
-
-    # Change in speed (km/h)
-    reward += 0.05 * (current["forward_speed"] - prev["forward_speed"])
-
-    # New collision damage
-    reward -= .00002 * (
-        current["collision_vehicles"] + current["collision_pedestrians"] +
-        current["collision_other"] - prev["collision_vehicles"] -
-        prev["collision_pedestrians"] - prev["collision_other"])
-
-    # New sidewalk intersection
-    reward -= 2 * (
-        current["intersection_offroad"] - prev["intersection_offroad"])
-
-    # New opposite lane intersection
-    reward -= 2 * (
-        current["intersection_otherlane"] - prev["intersection_otherlane"])
-
-    return reward
-
-
-def compute_reward_custom(env, prev, current):
-    reward = 0.0
-
-    cur_dist = current["distance_to_goal"]
-    prev_dist = prev["distance_to_goal"]
-
-    if env.config["verbose"]:
-        print("Cur dist {}, prev dist {}".format(cur_dist, prev_dist))
-
-    # Distance travelled toward the goal in m
-    reward += np.clip(prev_dist - cur_dist, -10.0, 10.0)
-
-    # Speed reward, up 30.0 (km/h)
-    reward += np.clip(current["forward_speed"], 0.0, 30.0) / 10
-
-    # New collision damage
-    new_damage = (
-        current["collision_vehicles"] + current["collision_pedestrians"] +
-        current["collision_other"] - prev["collision_vehicles"] -
-        prev["collision_pedestrians"] - prev["collision_other"])
-    if new_damage:
-        reward -= 100.0
-
-    # Sidewalk intersection
-    reward -= current["intersection_offroad"]
-
-    # Opposite lane intersection
-    reward -= current["intersection_otherlane"]
-
-    # Reached goal
-    if current["next_command"] == "REACH_GOAL":
-        reward += 100.0
-
-    return reward
-
-def compute_reward_custom1(env, prev, current):
-    reward = 0.0
-
-    # cur_dist = current["distance_to_goal"]
-    # prev_dist = prev["distance_to_goal"]
-    #
-    # if env.config["verbose"]:
-    #     print("Cur dist {}, prev dist {}".format(cur_dist, prev_dist))
-    #
-    # # Distance travelled toward the goal in m
-    # reward += 0.5 * np.clip(prev_dist - cur_dist, -12.0, 12.0)
-
-    # Speed reward, up 30.0 (km/h)
-    reward += np.clip(current["forward_speed"], 0.0, 30.0) / 10
-    if current["forward_speed"] > 40:
-        reward -= (current["forward_speed"] - 40)/12
-    # New collision damage
-    new_damage = (
-        current["collision_vehicles"] + current["collision_pedestrians"] +
-        current["collision_other"] - prev["collision_vehicles"] -
-        prev["collision_pedestrians"] - prev["collision_other"])
-    # print(current["collision_other"], current["collision_vehicles"], current["collision_pedestrians"])
-    # 0.0 41168.109375 0.0
-    if new_damage:
-        reward -= 100.0
-
-    # Sidewalk intersection [0, 1]
-    reward -= np.clip(5 * current["forward_speed"] * int(current["intersection_offroad"] > 0.0001), 0.0, 50)
-    # print(current["intersection_offroad"])
-    # Opposite lane intersection
-    reward -= 4 * current["intersection_otherlane"]  # [0 ~ 1]
-    # print(current["intersection_offroad"], current["intersection_otherlane"])
-    # Reached goal
-    # if current["next_command"] == "REACH_GOAL":
-    #     reward += 200.0
-    #     print('bro, you reach the goal, well done!!!')
-
-    return reward
-
-
-def compute_reward_custom2(env, prev, current):
-    reward = 0.0
-
-    # cur_dist = current["distance_to_goal"]
-    # prev_dist = prev["distance_to_goal"]
-    #
-    # if env.config["verbose"]:
-    #     print("Cur dist {}, prev dist {}".format(cur_dist, prev_dist))
-    #
-    # # Distance travelled toward the goal in m
-    # reward += 0.5 * np.clip(prev_dist - cur_dist, -12.0, 12.0)
-
-    # Speed reward, up 30.0 (km/h)
-    reward += current["forward_speed"]/ 10.0
-
-    # New collision damage
-    new_damage = (
-        current["collision_vehicles"] + current["collision_pedestrians"] +
-        current["collision_other"] - prev["collision_vehicles"] -
-        prev["collision_pedestrians"] - prev["collision_other"])
-    # print(current["collision_other"], current["collision_vehicles"], current["collision_pedestrians"])
-    # 0.0 41168.109375 0.0
-    if new_damage:
-        reward -= 100.0
-
-    # Sidewalk intersection [0, 1]
-    reward -= 10 * current["intersection_offroad"]
-    # print(current["intersection_offroad"])
-    # Opposite lane intersection
-    reward -= 4 * current["intersection_otherlane"]  # [0 ~ 1]
-
-
-    return reward
-
-def compute_reward_custom_depth(env, prev, current):
-    reward = 0.0
-
-    # cur_dist = current["distance_to_goal"]
-    # prev_dist = prev["distance_to_goal"]
-    #
-    # if env.config["verbose"]:
-    #     print("Cur dist {}, prev dist {}".format(cur_dist, prev_dist))
-    #
-    # # Distance travelled toward the goal in m
-    # reward += 0.5 * np.clip(prev_dist - cur_dist, -12.0, 12.0)
-
-    # Speed reward, up 30.0 (km/h)
-    reward += current["forward_speed"]/ 10.0
-    if current["forward_speed"] > 40:
-        reward -= (current["forward_speed"] - 40)/10.0
-    # New collision damage
-    new_damage = (
-        current["collision_vehicles"] + current["collision_pedestrians"] +
-        current["collision_other"] - prev["collision_vehicles"] -
-        prev["collision_pedestrians"] - prev["collision_other"])
-    # print(current["collision_other"], current["collision_vehicles"], current["collision_pedestrians"])
-    # 0.0 41168.109375 0.0
-    if new_damage:
-        reward -= 100.0
-
-    # Sidewalk intersection [0, 1]
-    reward -= 10 * current["intersection_offroad"]
-    # print(current["intersection_offroad"])
-    # Opposite lane intersection
-    # reward -= 4 * current["intersection_otherlane"]  # [0 ~ 1]
-
-
-    return reward
-
-def compute_reward_lane_keep(env, prev, current):
-    reward = 0.0
-
-    # Speed reward, up 30.0 (km/h)
-    reward += np.clip(current["forward_speed"], 0.0, 30.0) / 10
-
-    # # New collision damage
-    # new_damage = (
-    #     current["collision_vehicles"] + current["collision_pedestrians"] +
-    #     current["collision_other"] - prev["collision_vehicles"] -
-    #     prev["collision_pedestrians"] - prev["collision_other"])
-    # if new_damage:
-    #     reward -= 100.0
-    #
-    # # Sidewalk intersection
-    # reward -= current["intersection_offroad"]
-    #
-    # # Opposite lane intersection
-    # reward -= current["intersection_otherlane"]
-
-    return reward
-
-
-REWARD_FUNCTIONS = {
-    "corl2017": compute_reward_corl2017,
-    "custom": compute_reward_custom,
-    "custom1": compute_reward_custom1,
-    "custom2": compute_reward_custom2,
-    "custom_depth": compute_reward_custom_depth,
-    "lane_keep": compute_reward_lane_keep,
-}
-def compute_reward(env, prev, current):
-    return REWARD_FUNCTIONS[env.config["reward_function"]](env, prev, current)
-
-
-def print_measurements(measurements):
-    number_of_agents = len(measurements.non_player_agents)
-    player_measurements = measurements.player_measurements
-    message = "Vehicle at ({pos_x:.1f}, {pos_y:.1f}), "
-    message += "{speed:.2f} km/h, "
-    message += "Collision: {{vehicles={col_cars:.0f}, "
-    message += "pedestrians={col_ped:.0f}, other={col_other:.0f}}}, "
-    message += "{other_lane:.0f}% other lane, {offroad:.0f}% off-road, "
-    message += "({agents_num:d} non-player agents in the scene)"
-    message = message.format(
-        pos_x=player_measurements.transform.location.x / 100,  # cm -> m
-        pos_y=player_measurements.transform.location.y / 100,
-        speed=player_measurements.forward_speed,
-        col_cars=player_measurements.collision_vehicles,
-        col_ped=player_measurements.collision_pedestrians,
-        col_other=player_measurements.collision_other,
-        other_lane=100 * player_measurements.intersection_otherlane,
-        offroad=100 * player_measurements.intersection_offroad,
-        agents_num=number_of_agents)
-    print(message)
-
-
-def sigmoid(x):
-    x = float(x)
-    return np.exp(x) / (1 + np.exp(x))
-
-
-def collided_done(py_measurements):
-    m = py_measurements
-    collided = (m["collision_vehicles"] > 0 or m["collision_pedestrians"] > 0
-                or m["collision_other"] > 0)
-    return bool(collided or m["total_reward"] < -100)
-
-
-if __name__ == "__main__":
-    for _ in range(2):
-        env = CarlaEnv()
-        obs = env.reset()
-        print("reset", obs)
-        start = time.time()
-        done = False
-        i = 0
-        total_reward = 0.0
-        while not done:
-            i += 1
-            if ENV_CONFIG["discrete_actions"]:
-                obs, reward, done, info = env.step(3)
-            else:
-                obs, reward, done, info = env.step([1, 1])
-            total_reward += reward
-            print(i, "rew", reward, "total", total_reward, "done", done)
-        print("{} fps".format(i / (time.time() - start)))
+            obs = self._image_rgb[-1]
+        if ENV_CONFIG["planet"]:
+            done = False
+        return obs, reward, done, self._history_info[-1]
+
+    def render(self):
+        import pygame
+        display = pygame.display.set_mode(
+            (800, 600),
+            pygame.HWSURFACE | pygame.DOUBLEBUF)
+        surface = pygame.surfarray.make_surface(env._image_rgb[-1].swapaxes(0, 1))
+        display.blit(surface, (0, 0))
+        time.sleep(0.01)
+        pygame.display.flip()
+
+    def planner(self):
+        waypoint = self.map.get_waypoint(self.vehicle.get_location())
+        waypoint = random.choice(waypoint.next(12.0))
+        yaw = waypoint.transform.rotation.yaw
+        if yaw > -90 or yaw < 60:
+            command = "turn_right"
+        elif yaw > 60 and yaw < 120:
+            command = "lane_keep"
+        elif yaw > 120 or yaw < -90:
+            command = "turn_left"
+        return self.command[command]
+
+
+if __name__ == '__main__':
+    env = CarlaEnv()
+
+    obs = env.reset()
+    print(obs.shape)
+    done = False
+    while not done:
+    #    env.render()
+        obs, reward, done, info = env.step([1, 0])
+        # print(len(env._image_rgb), obs.shape)
+        print(reward)
+
+    # for actor in env.actor_list:
+    #     print(actor.id)
+    #     actor.destroy()
+    #     print("test", actor.is_alive)
