@@ -32,7 +32,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "discrete_actions": False,
     "image_mode": "stack",   # stack3 encode4
-    "early_stop": True,      # if we use planet this has to be False
+    "early_stop": False,      # if we use planet this has to be False
 }
 
 
@@ -228,6 +228,32 @@ class CarlaEnv(gym.Env):
                                   self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
         else:
             obs = self._image_rgb[-1]
+
+        t = self.vehicle.get_transform()
+        v = self.vehicle.get_velocity()
+        c = self.vehicle.get_control()
+        acceleration = self.vehicle.get_acceleration()
+        if len(self._history_invasion) > 0:
+            invasion = self._history_invasion[-1]
+        else:
+            invasion = []
+
+        info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
+                "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
+                "location_x": t.location.x,
+                "location_y": t.location.y,
+                "Throttle": c.throttle,
+                "Steer": c.steer,
+                "Brake": c.brake,
+                "command": self.planner(),
+                "lane_invasion": invasion,
+                "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
+                "is_at_traffic_light": self.vehicle.is_at_traffic_light(),       # True False
+                "collision": len(self._history_collision)
+        }
+
+        self._history_info.append(info)
+
         return obs
 
     @staticmethod
@@ -277,8 +303,8 @@ class CarlaEnv(gym.Env):
         impulse = event.normal_impulse
         intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
         self._history_collision.append((event.frame_number, intensity))
-        if len(self._history_collision) > 16:
-            self._history_collision.pop(0)
+        # if len(self._history_collision) > 16:
+            # self._history_collision.pop(0)
 
     @staticmethod
     def _parse_invasion(weak_self, event):
@@ -289,15 +315,24 @@ class CarlaEnv(gym.Env):
         text = ['%r' % str(x).split()[-1] for x in set(event.crossed_lane_markings)]
         # S for Solid B for Broken
         self._history_invasion.append(text[0][1])
-        if len(self._history_invasion) > 16:
-            self._history_invasion.pop(0)
+        # if len(self._history_invasion) > 16:
+             # self._history_invasion.pop(0)
 
     def step(self, action):
 
         def compute_reward(info, prev_info):
             reward = 0.0
             reward += np.clip(info["speed"], 0, 30)/6
-            reward -= 100 * int(len(self._history_collision) > 0)
+
+            if info["collision"] == 1:
+                reward -= 100
+
+            elif 2 <= info["collision"] < 5:
+                reward -= info['speed'] * 15
+            elif info["collision"] > 5:
+                reward -= info['speed'] * 10
+
+            # print(info["collision"])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
                 reward -= 3
@@ -313,7 +348,7 @@ class CarlaEnv(gym.Env):
         steer = float(np.clip(action[1], -1, 1))
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.1)
+        # time.sleep(0.1)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -323,6 +358,7 @@ class CarlaEnv(gym.Env):
             invasion = self._history_invasion[-1]
         else:
             invasion = []
+
         info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
                 "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
                 "location_x": t.location.x,
@@ -333,35 +369,34 @@ class CarlaEnv(gym.Env):
                 "command": self.planner(),
                 "lane_invasion": invasion,
                 "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
-                "is_at_traffic_light": self.vehicle.is_at_traffic_light(),
-                "speed_limit": self.vehicle.get_speed_limit()}       # True False
+                "is_at_traffic_light": self.vehicle.is_at_traffic_light(),       # True False
+                "collision": len(self._history_collision)
+        }
 
-        if len(self._history_info) == 0:
-            self._history_info.append(info)
-        reward = compute_reward(info, self._history_info[-1])
         self._history_info.append(info)
-        if len(self._history_info) > 16:
-            self._history_info.pop(0)
+        reward = compute_reward(self._history_info[-1], self._history_info[-2])
+        # print(self._history_info[-2]["speed"],  self._history_info[-1]["speed"])
+
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
             if len(self._history_collision) > 0:
-                print("collisin length", len(self._history_collision))
+                # print("collisin length", len(self._history_collision))
                 done = True
             elif reward < -100:
                 done = True
 
-            if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-                obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
-                                      self._image_depth[-1][:, :, np.newaxis],
-                                      self._image_segmentation[-1][:, :, np.newaxis]*21,
-                                      self.encode_measurement(info)], axis=2)
-            elif ENV_CONFIG["image_mode"] == "stack":
-                obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
-                                      self._image_depth[-1][:, :, np.newaxis],
-                                      self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
-            else:
-                obs = self._image_rgb[-1]
+        if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
+            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis]*21,
+                                  self.encode_measurement(info)], axis=2)
+        elif ENV_CONFIG["image_mode"] == "stack":
+            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
+        else:
+            obs = self._image_rgb[-1]
 
         return obs, reward, done, self._history_info[-1]
 
@@ -407,7 +442,7 @@ if __name__ == '__main__':
     done = False
     i = 0
     while not done:
-    #    env.render()
+        env.render()
         obs, reward, done, info = env.step([1, 0])
         # print(len(env._image_rgb), obs.shape)
         print(i, reward)

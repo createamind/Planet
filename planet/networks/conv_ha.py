@@ -22,7 +22,6 @@ from tensorflow_probability import distributions as tfd
 
 from planet import tools
 
-
 def encoder(obs):
   """Extract deterministic features from an observation."""
   kwargs = dict(strides=2, activation=tf.nn.relu)
