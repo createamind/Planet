@@ -143,61 +143,55 @@ class CarlaEnv(gym.Env):
                 a.destroy()
             except:
                 pass
-        fail_time = 0
-        for _ in range(32):
 
-            if None in self.actor_list or len(self.actor_list) < 5:
-                try:
-                    bp_library = world.get_blueprint_library()
+        try:
+            bp_library = world.get_blueprint_library()
 
-                    # setup vehicle
-                    spawn_point = random.choice(world.get_map().get_spawn_points())
-                    bp_vehicle = bp_library.find('vehicle.lincoln.mkz2017')
-                    bp_vehicle.set_attribute('role_name', 'hero')
-                    self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
-                    self.actor_list.append(self.vehicle)
+            # setup vehicle
+            spawn_point = random.choice(world.get_map().get_spawn_points())
+            bp_vehicle = bp_library.find('vehicle.lincoln.mkz2017')
+            bp_vehicle.set_attribute('role_name', 'hero')
+            self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
+            self.actor_list.append(self.vehicle)
 
-                    # setup rgb camera
-                    camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
-                    camera_rgb = bp_library.find('sensor.camera.rgb')
-                    camera_rgb.set_attribute('fov', '120')
-                    camera_rgb.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-                    camera_rgb.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-                    self.camera_rgb = world.try_spawn_actor(camera_rgb, camera_transform, attach_to=self.vehicle)
-                    self.actor_list.append(self.camera_rgb)
+            # setup rgb camera
+            camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
+            camera_rgb = bp_library.find('sensor.camera.rgb')
+            camera_rgb.set_attribute('fov', '120')
+            camera_rgb.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            camera_rgb.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            self.camera_rgb = world.try_spawn_actor(camera_rgb, camera_transform, attach_to=self.vehicle)
+            self.actor_list.append(self.camera_rgb)
 
-                    # setup depth camera
-                    camera_depth = bp_library.find('sensor.camera.depth')
-                    camera_depth.set_attribute('fov', '120')
-                    camera_depth.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-                    camera_depth.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-                    self.camera_depth = world.try_spawn_actor(camera_depth, camera_transform, attach_to=self.vehicle)
-                    self.actor_list.append(self.camera_depth)
+            # setup depth camera
+            camera_depth = bp_library.find('sensor.camera.depth')
+            camera_depth.set_attribute('fov', '120')
+            camera_depth.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            camera_depth.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            self.camera_depth = world.try_spawn_actor(camera_depth, camera_transform, attach_to=self.vehicle)
+            self.actor_list.append(self.camera_depth)
 
-                    # setup segmentation camera
-                    camera_segmentation = bp_library.find('sensor.camera.semantic_segmentation')
-                    camera_segmentation.set_attribute('fov', '120')
-                    camera_segmentation.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-                    camera_segmentation.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-                    self.camera_segmentation = world.try_spawn_actor(camera_segmentation, camera_transform, attach_to=self.vehicle)
-                    self.actor_list.append(self.camera_segmentation)
+            # setup segmentation camera
+            camera_segmentation = bp_library.find('sensor.camera.semantic_segmentation')
+            camera_segmentation.set_attribute('fov', '120')
+            camera_segmentation.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            camera_segmentation.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            self.camera_segmentation = world.try_spawn_actor(camera_segmentation, camera_transform, attach_to=self.vehicle)
+            self.actor_list.append(self.camera_segmentation)
 
-                    # add collision sensors
-                    bp = bp_library.find('sensor.other.collision')
-                    self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
-                    self.actor_list.append(self.collision_sensor)
+            # add collision sensors
+            bp = bp_library.find('sensor.other.collision')
+            self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
+            self.actor_list.append(self.collision_sensor)
 
-                    # add invasion sensors
-                    bp = bp_library.find('sensor.other.lane_detector')
-                    self.invasion_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
-                    self.actor_list.append(self.invasion_sensor)
-                except:
-                    fail_time += 1
-                    time.sleep(0.1)
+            # add invasion sensors
+            bp = bp_library.find('sensor.other.lane_detector')
+            self.invasion_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
+            self.actor_list.append(self.invasion_sensor)
+        except Exception as e:
+            print("spawn fail, sad news", e)
 
-            if fail_time > 20:
-                print("spawn actor fail, so sad!!!")
-                break
+
 
     def reset(self):
         self.restart()
