@@ -277,21 +277,21 @@ class CarlaEnv(gym.Env):
             self._image_gray.append(0.45*array[:, :, 0] +
                                     0.45*array[:, :, 1] +
                                     0.1*array[:, :, 2])
-            if len(self._image_gray) > 16:
+            if len(self._image_gray) > 32:
                 self._image_gray.pop(0)
-            if len(self._image_rgb) > 16:
+            if len(self._image_rgb) > 32:
                 self._image_rgb.pop(0)
         if use == 'depth':
             array = convert(cc)
             # it is the same in each channel of depth image
             self._image_depth.append(array[:, :, 0])
-            if len(self._image_depth) > 16:
+            if len(self._image_depth) > 32:
                 self._image_depth.pop(0)
         if use == 'seg':
             array = convert(cc)
             # segmentation information encode in red channel
             self._image_segmentation.append(array[:, :, 0])
-            if len(self._image_segmentation) > 16:
+            if len(self._image_segmentation) > 32:
                 self._image_segmentation.pop(0)
 
 
@@ -303,8 +303,8 @@ class CarlaEnv(gym.Env):
         impulse = event.normal_impulse
         intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
         self._history_collision.append((event.frame_number, intensity))
-        # if len(self._history_collision) > 16:
-            # self._history_collision.pop(0)
+        if len(self._history_collision) > 32:
+            self._history_collision.pop(0)
 
     @staticmethod
     def _parse_invasion(weak_self, event):
@@ -315,8 +315,8 @@ class CarlaEnv(gym.Env):
         text = ['%r' % str(x).split()[-1] for x in set(event.crossed_lane_markings)]
         # S for Solid B for Broken
         self._history_invasion.append(text[0][1])
-        # if len(self._history_invasion) > 16:
-             # self._history_invasion.pop(0)
+        if len(self._history_invasion) > 32:
+             self._history_invasion.pop(0)
 
     def step(self, action):
 
@@ -442,7 +442,7 @@ if __name__ == '__main__':
     done = False
     i = 0
     while not done:
-        env.render()
+        # env.render()
         obs, reward, done, info = env.step([1, 0])
         # print(len(env._image_rgb), obs.shape)
         print(i, reward)
