@@ -156,8 +156,14 @@ class DenseNet():
 #       np.prod(hidden.shape[1:].as_list())])
 #   return hidden                                                                # shape(50,50,1024)
 
-def encode(obs):
-  return DenseNet(x=obs, nb_blocks=nb_block, filters=growth_k).model
+def encoder(obs):
+  print("*****************************************input shape is******************************************************", obs['image'].shape)
+  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+ #  hidden = tf.reshape(obs['image'], [-1, 96, 96, 3])
+  hidden = DenseNet(x=hidden, nb_blocks=nb_block, filters=growth_k).model
+  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
+  return hidden
 
 def decoder(state, data_shape):
   """Compute the data distribution of an observation from its state."""
