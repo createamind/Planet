@@ -351,7 +351,7 @@ class CarlaEnv(gym.Env):
         distance_before_act = ((self._history_waypoint[-1].transform.location.x - self.vehicle.get_location().x)**2 + 
                    (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
       
-        command = self.planner()
+        # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
         time.sleep(0.07)
@@ -431,8 +431,8 @@ class CarlaEnv(gym.Env):
             command = "lane_keep"
         elif yaw > 120 or yaw < -90:
             command = "turn_left"
-        distance = ((waypoint.transform.location.x - self.vehicle.get_location().x)**2 + 
-                   (waypoint.transform.location.y - self.vehicle.get_location().y)**2)**0.5
+        # distance = ((waypoint.transform.location.x - self.vehicle.get_location().x)**2 +
+        #            (waypoint.transform.location.y - self.vehicle.get_location().y)**2)**0.5
         return self.command[command]
 
     @staticmethod
