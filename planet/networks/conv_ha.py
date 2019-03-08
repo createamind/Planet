@@ -21,19 +21,16 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from planet import tools
-import tensorflow as tf
 from tflearn.layers.conv import global_avg_pool
 # from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.contrib.layers import batch_norm, flatten
 from tensorflow.contrib.framework import arg_scope
-import numpy as np
-
-# mnist = np.random.randn(10000, 96, 96, 3)
 
 # Hyperparameter
-growth_k = 23  # growth rate, how many feature map we generate each layer
+growth_k = 18  # growth rate, how many feature map we generate each layer
 nb_block = 5        # how many (dense block + Transition Layer)
 
+# 96*96*3
 
 def conv_layer(input, filter, kernel, stride=1, layer_name="conv"):
     with tf.name_scope(layer_name):
@@ -93,8 +90,7 @@ class DenseNet():
         """connect different dense net block"""
         with tf.name_scope(scope):
             x = Relu(x)
-            in_channel = int(x.shape[-1])
-            x = conv_layer(x, filter=in_channel, kernel=[1, 1], layer_name=scope+'_conv1')
+            x = conv_layer(x, filter=4, kernel=[3, 3], layer_name=scope+'_conv1')
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
 
             return x
@@ -120,19 +116,9 @@ class DenseNet():
 
     def Dense_net(self, input_x):
         """Dense net composed with many block and the transition layers between those block"""
-        x = conv_layer(input_x, filter=12, kernel=[5, 5], stride=2, layer_name='conv0')
-        # x = input_x
-        # x = Max_Pooling(x, pool_size=[3, 3], stride=2)
-        x = self.dense_block(input_x=x, nb_layers=9, layer_name='dense_1')
+        x = conv_layer(input_x, filter=12, kernel=[5, 5], stride=3, layer_name='conv0')
+        x = self.dense_block(input_x=x, nb_layers=8, layer_name='dense_1')
         x = self.transition_layer(x, scope='trans_1')
-
-        x = self.dense_block(input_x=x, nb_layers=15, layer_name='dense_2')
-        x = self.transition_layer(x, scope='trans_2')
-
-        x = self.dense_block(input_x=x, nb_layers=20, layer_name='dense_final')
-        # 100 Layer
-        x = Relu(x)
-        x = Global_Average_Pooling(x)
         x = flatten(x)
 
         return x
@@ -167,12 +153,8 @@ def decoder(state, data_shape):
   hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs) 
   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  # hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  # print(hidden)
   hidden = tf.layers.conv2d_transpose(hidden, 3, 9, strides=3)
   mean = hidden
-  # print(mean)
-  # assert mean.shape[1:].as_list() == [64, 64, 3], mean.shape
   assert mean.shape[1:].as_list() == [96, 96, 3], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
