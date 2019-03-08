@@ -90,7 +90,7 @@ class DenseNet():
         """connect different dense net block"""
         with tf.name_scope(scope):
             x = Relu(x)
-            x = conv_layer kernel=[3, 3], layer_name=scope+'_conv1')
+            x = conv_layer(x, filter=4, kernel=[3, 3], layer_name=scope+'_conv1')
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
 
             return x

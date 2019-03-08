@@ -58,7 +58,7 @@ def _data_processing(config, params):
   config.max_episodes = None
   config.scan_episodes_every = params.get('scan_episodes_every', 10)
   config.data_loader = params.get('data_loader', 'scan')
-  config.batch_shape = params.get('batch_shape', (12, 50))
+  config.batch_shape = params.get('batch_shape', (16, 50))
   config.num_chunks = params.get('num_chunks', 1)
   image_bits = params.get('image_bits', 8)
   config.preprocess_fn = functools.partial(
