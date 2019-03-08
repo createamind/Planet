@@ -216,12 +216,12 @@ class CarlaEnv(gym.Env):
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]*21,
+                                  self._image_segmentation[-1][:, :, np.newaxis],
                                   np.zeros([ENV_CONFIG['x_res'], ENV_CONFIG['y_res'], 1])], axis=2)
         elif ENV_CONFIG["image_mode"] == "stack":
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
+                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
         else:
             obs = self._image_rgb[-1]
 
@@ -286,7 +286,7 @@ class CarlaEnv(gym.Env):
         if use == 'seg':
             array = convert(cc)
             # segmentation information encode in red channel
-            self._image_segmentation.append(array[:, :, 0])
+            self._image_segmentation.append(array[:, :, 0] * 21)  # 12 labels totally
             if len(self._image_segmentation) > 32:
                 self._image_segmentation.pop(0)
 
@@ -385,12 +385,12 @@ class CarlaEnv(gym.Env):
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]*21,
+                                  self._image_segmentation[-1][:, :, np.newaxis],
                                   self.encode_measurement(info)], axis=2)
         elif ENV_CONFIG["image_mode"] == "stack":
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis] * 21], axis=2)
+                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
         else:
             obs = self._image_rgb[-1]
 
@@ -438,7 +438,7 @@ if __name__ == '__main__':
     done = False
     i = 0
     while not done:
-        # env.render()
+        env.render()
         obs, reward, done, info = env.step([1, 0])
         # print(len(env._image_rgb), obs.shape)
         print(i, reward)

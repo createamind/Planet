@@ -27,7 +27,7 @@ from tensorflow.contrib.layers import batch_norm, flatten
 from tensorflow.contrib.framework import arg_scope
 
 # Hyperparameter
-growth_k = 18  # growth rate, how many feature map we generate each layer
+growth_k = 24  # growth rate, how many feature map we generate each layer
 nb_block = 5        # how many (dense block + Transition Layer)
 
 # 96*96*3
@@ -63,10 +63,10 @@ def Max_Pooling(x, pool_size=[3, 3], stride=2, padding='VALID'):
 
 def Concatenation(layers) :
     return tf.concat(layers, axis=3)
-
-
-def Linear(x) :
-    return tf.layers.dense(inputs=x, units=class_num, name='linear')
+#
+#
+# def Linear(x) :
+#     return tf.layers.dense(inputs=x, units=class_num, name='linear')
 
 
 class DenseNet():
@@ -90,7 +90,7 @@ class DenseNet():
         """connect different dense net block"""
         with tf.name_scope(scope):
             x = Relu(x)
-            x = conv_layer(x, filter=4, kernel=[3, 3], layer_name=scope+'_conv1')
+            x = conv_layer kernel=[3, 3], layer_name=scope+'_conv1')
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
 
             return x
@@ -116,8 +116,8 @@ class DenseNet():
 
     def Dense_net(self, input_x):
         """Dense net composed with many block and the transition layers between those block"""
-        x = conv_layer(input_x, filter=12, kernel=[5, 5], stride=3, layer_name='conv0')
-        x = self.dense_block(input_x=x, nb_layers=8, layer_name='dense_1')
+        x = conv_layer(input_x, filter=48, kernel=[5, 5], stride=3, layer_name='conv0')
+        x = self.dense_block(input_x=x, nb_layers=5, layer_name='dense_1')
         x = self.transition_layer(x, scope='trans_1')
         x = flatten(x)
 
