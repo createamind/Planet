@@ -110,6 +110,7 @@ class CarlaEnv(gym.Env):
         self._image_rgb = []          # save a list of rgb image
         self._image_segmentation = []
         self._image_gray = []
+        self._history_waypoint = []
         # initialize our world
         self.server_port = 2000
         self.world = None
@@ -233,6 +234,10 @@ class CarlaEnv(gym.Env):
             invasion = self._history_invasion[-1]
         else:
             invasion = []
+        command = self.planner()
+       
+        distance = ((self._history_waypoint[-1].transform.location.x - self.vehicle.get_location().x)**2 + 
+                   (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
 
         info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
                 "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
@@ -242,6 +247,7 @@ class CarlaEnv(gym.Env):
                 "Steer": c.steer,
                 "Brake": c.brake,
                 "command": self.planner(),
+                "distance": distance,
                 "lane_invasion": invasion,
                 "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
                 "is_at_traffic_light": self.vehicle.is_at_traffic_light(),       # True False
@@ -319,7 +325,7 @@ class CarlaEnv(gym.Env):
         def compute_reward(info, prev_info):
             reward = 0.0
             reward += np.clip(info["speed"], 0, 30)/6
-
+            reward += info['distance']
             if info["collision"] == 1:
                 reward -= 100
 
@@ -342,9 +348,13 @@ class CarlaEnv(gym.Env):
         throttle = float(np.clip(action[0], 0, 1))
         brake = float(np.abs(np.clip(action[0], -1, 0)))
         steer = float(np.clip(action[1], -1, 1))
+        distance_before_act = ((self._history_waypoint[-1].transform.location.x - self.vehicle.get_location().x)**2 + 
+                   (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
+      
+        command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        # time.sleep(0.1)
+        time.sleep(0.07)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -354,7 +364,11 @@ class CarlaEnv(gym.Env):
             invasion = self._history_invasion[-1]
         else:
             invasion = []
-
+             
+        command = self.planner()
+       
+        distance_after_act = ((self._history_waypoint[-2].transform.location.x - self.vehicle.get_location().x)**2 + 
+                   (self._history_waypoint[-2].transform.location.y - self.vehicle.get_location().y)**2)**0.5
         info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
                 "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
                 "location_x": t.location.x,
@@ -362,16 +376,16 @@ class CarlaEnv(gym.Env):
                 "Throttle": c.throttle,
                 "Steer": c.steer,
                 "Brake": c.brake,
-                "command": self.planner(),
+                "command": command,
+                "distance": distance_before_act - distance_after_act,  # distance to waypoint
                 "lane_invasion": invasion,
                 "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
                 "is_at_traffic_light": self.vehicle.is_at_traffic_light(),       # True False
-                "collision": len(self._history_collision)
-        }
+                "collision": len(self._history_collision)}
 
         self._history_info.append(info)
         reward = compute_reward(self._history_info[-1], self._history_info[-2])
-        # print(self._history_info[-2]["speed"],  self._history_info[-1]["speed"])
+        # print(self._history_info[-1]["speed"], self._history_info[-1]["collision"])
 
         # early stop
         done = False
@@ -409,6 +423,7 @@ class CarlaEnv(gym.Env):
     def planner(self):
         waypoint = self.map.get_waypoint(self.vehicle.get_location())
         waypoint = random.choice(waypoint.next(12.0))
+        self._history_waypoint.append(waypoint)
         yaw = waypoint.transform.rotation.yaw
         if yaw > -90 or yaw < 60:
             command = "turn_right"
@@ -416,6 +431,8 @@ class CarlaEnv(gym.Env):
             command = "lane_keep"
         elif yaw > 120 or yaw < -90:
             command = "turn_left"
+        distance = ((waypoint.transform.location.x - self.vehicle.get_location().x)**2 + 
+                   (waypoint.transform.location.y - self.vehicle.get_location().y)**2)**0.5
         return self.command[command]
 
     @staticmethod
