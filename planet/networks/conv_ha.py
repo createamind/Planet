@@ -123,33 +123,33 @@ class DenseNet():
 
         return x
 
-# def encoder(obs):
-#   """Extract deterministic features from an observation."""
-#   kwargs = dict(strides=2, activation=tf.nn.relu)
-#   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())   # (50,50,64,64,3) reshape to (2500,64,64,3)
-#   hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
-#   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
-# #   print(hidden)
-#   hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
-#   # print(hidden)
-#   hidden = tf.layers.flatten(hidden)
-#
-#   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-#   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
-#       np.prod(hidden.shape[1:].as_list())])
-#   return hidden                                                                # shape(50,50,1024)
-
 def encoder(obs):
-  print("*****************************************input shape is******************************************************", obs['image'].shape)
-  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
- #  hidden = tf.reshape(obs['image'], [-1, 96, 96, 3])
-  hidden = DenseNet(x=hidden, nb_blocks=nb_block, filters=growth_k).model
+  """Extract deterministic features from an observation."""
+  kwargs = dict(strides=2, activation=tf.nn.relu)
+  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())   # (50,50,64,64,3) reshape to (2500,64,64,3)
+  hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
+  # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
+  hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
+#   print(hidden)
+  hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
+  # print(hidden)
+  hidden = tf.layers.flatten(hidden)
+
   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
-  return hidden
+  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
+      np.prod(hidden.shape[1:].as_list())])
+  return hidden                                                                # shape(50,50,1024)
+
+# def encoder(obs):
+#   print("*****************************************input shape is******************************************************", obs['image'].shape)
+#   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+#  #  hidden = tf.reshape(obs['image'], [-1, 96, 96, 3])
+#   hidden = DenseNet(x=hidden, nb_blocks=nb_block, filters=growth_k).model
+#   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+#   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
+#   return hidden
 
 def decoder(state, data_shape):
   """Compute the data distribution of an observation from its state."""
