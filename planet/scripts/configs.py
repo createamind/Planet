@@ -133,9 +133,9 @@ def _loss_functions(config, params):
 
 
 def _training_schedule(config, params):
-  config.train_steps = int(params.get('train_steps', 50000))
+  config.train_steps = int(params.get('train_steps', 150000))
   config.test_steps = int(params.get('test_steps', 100))
-  config.max_steps = int(params.get('max_steps', 2e7))
+  config.max_steps = int(params.get('max_steps', 6e7))
   config.train_log_every = config.train_steps
   config.train_checkpoint_every = None
   config.test_checkpoint_every = int(
@@ -200,8 +200,8 @@ def _active_collection(config, params):
       sim = _define_simulation(task, config, params, horizon, batch_size)
       sim.unlock()
       sim.save_episode_dir = config.train_dir
-      sim.steps_after = params.get('collect_every', 5000)
-      sim.steps_every = params.get('collect_every', 5000)
+      sim.steps_after = params.get('collect_every', 15000)
+      sim.steps_every = params.get('collect_every', 15000)
       sim.exploration = tools.AttrDict(
           scale=params.get('exploration_noises', [0.3])[index],
           schedule=functools.partial(

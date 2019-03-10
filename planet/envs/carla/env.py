@@ -6,7 +6,7 @@ import sys
 import re
 import weakref
 try:
-    sys.path.append('/home/gu/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
 except IndexError:
     pass
 
@@ -30,8 +30,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
+    "port": 5000,
     "discrete_actions": False,
-    "image_mode": "encode",   # stack3 encode4
+    "image_mode": "stack",   # stack3 encode3 rgb
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -112,7 +113,7 @@ class CarlaEnv(gym.Env):
         self._image_gray = []
         self._history_waypoint = []
         # initialize our world
-        self.server_port = 2000
+        self.server_port = ENV_CONFIG['port']
         self.world = None
         connect_fail_times = 0
         while self.world is None:
@@ -212,8 +213,20 @@ class CarlaEnv(gym.Env):
                                                                         carla.ColorConverter.Raw, 'seg'))
 
         while len(self._image_rgb) < 4:
-            print("resetting")
+            print("resetting rgb")
             time.sleep(0.01)
+        while len(self._image_depth) < 4:
+            print("resetting depth")
+            time.sleep(0.01)
+        while len(self._image_gray) < 4:
+            print("resetting gray")
+            time.sleep(0.01)
+        while len(self._image_segmentation) < 4:
+            print("resetting segmentation")
+            time.sleep(0.01)
+ 
+ 
+
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
             obs = np.concatenate([# self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
@@ -334,7 +347,7 @@ class CarlaEnv(gym.Env):
             elif info["collision"] > 5:
                 reward -= info['speed'] * 10
 
-            # print(info["collision"])
+            print("****************current speed****************", info["speed"])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
                 reward -= 3
@@ -354,7 +367,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.07)
+        #  time.sleep(0.07)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
