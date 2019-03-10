@@ -31,7 +31,7 @@ ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
     "discrete_actions": False,
-    "image_mode": "stack",   # stack3 encode4
+    "image_mode": "encode",   # stack3 encode4
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -215,7 +215,7 @@ class CarlaEnv(gym.Env):
             print("resetting")
             time.sleep(0.01)
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+            obs = np.concatenate([# self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis],
                                   np.zeros([ENV_CONFIG['x_res'], ENV_CONFIG['y_res'], 1])], axis=2)
@@ -397,7 +397,7 @@ class CarlaEnv(gym.Env):
                 done = True
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
+            obs = np.concatenate([# self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis],
                                   self.encode_measurement(info)], axis=2)
