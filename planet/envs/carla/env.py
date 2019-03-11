@@ -255,9 +255,15 @@ class CarlaEnv(gym.Env):
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
         elif ENV_CONFIG["image_mode"] == "segmentation":
-            obs = self._image_segmentation[-1][:, :, np.newaxis]
+            obs = np.concatenate([self._image_segmentation[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis],
+                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
+
+
         elif ENV_CONFIG["image_mode"] == "depth":
-            obs = self._image_depth[-1][:, :, np.newaxis]
+            obs = np.concatenate([self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis],
+                                  self._image_depth[-1][:, :, np.newaxis]], axis=2)
         else:
             obs = self._image_rgb[-1]
 
