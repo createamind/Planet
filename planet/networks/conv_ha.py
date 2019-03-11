@@ -160,9 +160,9 @@ def decoder(state, data_shape):
   hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs) 
   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 3, 9, strides=3)
+  hidden = tf.layers.conv2d_transpose(hidden, 1, 9, strides=3)
   mean = hidden
-  assert mean.shape[1:].as_list() == [96, 96, 3], mean.shape
+  assert mean.shape[1:].as_list() == [96, 96, 1], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
