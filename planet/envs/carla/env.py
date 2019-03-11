@@ -6,7 +6,7 @@ import sys
 import re
 import weakref
 try:
-    sys.path.append('~/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
 except IndexError:
     pass
 
@@ -30,9 +30,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 3000,  # 4000 for rgb no sleep
+    "port": 5000,  # 4000 for rgb no sleep 3000 seg no sleep 25 5000 seg no sleep 50
     "discrete_actions": False,
-    "image_mode": "rgb",   # stack3 encode3 rgb segmentation
+    "image_mode": "segmentation",   # stack3 encode3 rgb segmentation
     "early_stop": False,      # if we use planet this has to be False
 }
 
