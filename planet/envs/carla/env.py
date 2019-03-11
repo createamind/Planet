@@ -30,7 +30,7 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 4000,
+    "port": 3000,  # 4000 for rgb no sleep
     "discrete_actions": False,
     "image_mode": "segmentation",   # stack3 encode3 rgb segmentation
     "early_stop": False,      # if we use planet this has to be False
@@ -440,6 +440,13 @@ class CarlaEnv(gym.Env):
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
+        
+        elif ENV_CONFIG["image_mode"] == "segmentation":
+            obs = self._image_segmentation[-1][:, :, np.newaxis]
+        elif ENV_CONFIG["image_mode"] == "depth":
+            obs = self._image_depth[-1][:, :, np.newaxis]
+
+
         else:
             obs = self._image_rgb[-1]
 
