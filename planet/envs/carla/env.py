@@ -30,9 +30,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 5000,
+    "port": 4000,
     "discrete_actions": False,
-    "image_mode": "stack",   # stack3 encode3 rgb
+    "image_mode": "rgb",   # stack3 encode3 rgb
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -134,6 +134,24 @@ class CarlaEnv(gym.Env):
     def restart(self):
         """restart world and add sensors"""
         world = self.world
+        # actors
+        self.actor_list = []          # save actor list for destroying them after finish
+        self.vehicle = None
+        self.collision_sensor = None
+        self.camera_rgb = None
+        self.invasion_sensor = None
+        self.camera_segmentation = None
+        self.camera_depth = None
+        # states and data
+        self._history_info = []       # info history
+        self._history_collision = []  # collision history
+        self._history_invasion = []   # invasion history
+        self._image_depth = []        # save a list of depth image
+        self._image_rgb = []          # save a list of rgb image
+        self._image_segmentation = []
+        self._image_gray = []
+        self._history_waypoint = []
+
         # destroy actors in the world before we start new episode
         for a in self.world.get_actors().filter('vehicle.*'):
             try:
@@ -340,19 +358,19 @@ class CarlaEnv(gym.Env):
             reward += np.clip(info["speed"], 0, 30)/6
             reward += info['distance']
             if info["collision"] == 1:
-                reward -= 100
+                reward -= 10
 
             elif 2 <= info["collision"] < 5:
-                reward -= info['speed'] * 15
+                reward -= info['speed'] * 2
             elif info["collision"] > 5:
-                reward -= info['speed'] * 10
+                reward -= info['speed'] * 1
 
-            print("****************current speed****************", info["speed"])
-            new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
-            if 'S' in new_invasion:     # go across solid lane
-                reward -= 3
-            elif 'B' in new_invasion:   # go across broken lane
-                reward -= 2
+            print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
+            # new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
+            # if 'S' in new_invasion:     # go across solid lane
+              #   reward -= 3
+            # elif 'B' in new_invasion:   # go across broken lane
+               #  reward -= 2
             return reward
 
         if self.config["discrete_actions"]:
@@ -367,7 +385,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        #  time.sleep(0.07)
+        # time.sleep(0.1)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -468,10 +486,10 @@ if __name__ == '__main__':
     done = False
     i = 0
     while not done:
-        env.render()
+        # env.render()
         obs, reward, done, info = env.step([1, 0])
         # print(len(env._image_rgb), obs.shape)
-        print(i, reward)
+       #  print(i, reward)
         i += 1
     # for actor in env.actor_list:
     #     print(actor.id)
