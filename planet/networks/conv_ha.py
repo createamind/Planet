@@ -126,7 +126,8 @@ class DenseNet():
 def encoder(obs):
   """Extract deterministic features from an observation."""
   kwargs = dict(strides=2, activation=tf.nn.relu)
-  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())   # (50,50,64,64,3) reshape to (2500,64,64,3)
+  # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
+  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
   hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
   hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
