@@ -30,9 +30,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 3000,  # 4000 for rgb no sleep
+    "port": 3000,  # 4000 for rgb no sleep 3000 for seg no sleep
     "discrete_actions": False,
-    "image_mode": "rgb",   # stack3 encode3 rgb segmentation
+    "image_mode": "segmentation",   # stack3 encode3 rgb segmentation
     "early_stop": False,      # if we use planet this has to be False
 }
 
