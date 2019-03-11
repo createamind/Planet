@@ -6,7 +6,7 @@ import sys
 import re
 import weakref
 try:
-    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+    sys.path.append('~/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
 except IndexError:
     pass
 
@@ -32,7 +32,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 3000,  # 4000 for rgb no sleep
     "discrete_actions": False,
-    "image_mode": "segmentation",   # stack3 encode3 rgb segmentation
+    "image_mode": "rgb",   # stack3 encode3 rgb segmentation
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -226,10 +226,12 @@ class CarlaEnv(gym.Env):
         # set depth camera sensor
         self.camera_depth.listen(lambda image: self._parse_image(weak_self, image,
                                                                  carla.ColorConverter.LogarithmicDepth, 'depth'))
-        # set segmentation camera sensor
+        # # set segmentation camera sensor
+        # self.camera_segmentation.listen(lambda image: self._parse_image(weak_self, image,
+        #                                                                 carla.ColorConverter.Raw, 'seg'))
+        # set segmentation camera sensor change to cc.CityScapesPalette
         self.camera_segmentation.listen(lambda image: self._parse_image(weak_self, image,
-                                                                        carla.ColorConverter.Raw, 'seg'))
-
+                                                                        carla.ColorConverter.CityScapesPalette, 'seg_convert'))
         while len(self._image_rgb) < 4:
             print("resetting rgb")
             time.sleep(0.01)
@@ -255,10 +257,7 @@ class CarlaEnv(gym.Env):
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
         elif ENV_CONFIG["image_mode"] == "segmentation":
-            obs = np.concatenate([self._image_segmentation[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
-
+            obs = self._image_segmentation[-1]
 
         elif ENV_CONFIG["image_mode"] == "depth":
             obs = np.concatenate([self._image_depth[-1][:, :, np.newaxis],
@@ -336,7 +335,12 @@ class CarlaEnv(gym.Env):
             self._image_segmentation.append(array[:, :, 0] * 21)  # 12 labels totally
             if len(self._image_segmentation) > 32:
                 self._image_segmentation.pop(0)
-
+        if use == 'seg_convert':
+            array = convert(cc)
+            # segmentation information encode in red channel
+            self._image_segmentation.append(array)  # 12 labels totally
+            if len(self._image_segmentation) > 32:
+                self._image_segmentation.pop(0)
 
     @staticmethod
     def _parse_collision(weak_self, event):
@@ -446,12 +450,9 @@ class CarlaEnv(gym.Env):
             obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
                                   self._image_depth[-1][:, :, np.newaxis],
                                   self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
-        
-        elif ENV_CONFIG["image_mode"] == "segmentation":
-            obs = np.concatenate([self._image_segmentation[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
 
+        elif ENV_CONFIG["image_mode"] == "segmentation":
+            obs = self._image_segmentation[-1]
 
         elif ENV_CONFIG["image_mode"] == "depth":
             obs = np.concatenate([self._image_depth[-1][:, :, np.newaxis],
@@ -508,7 +509,7 @@ if __name__ == '__main__':
     done = False
     i = 0
     while not done:
-        # env.render()
+        env.render()
         obs, reward, done, info = env.step([1, 0])
         # print(len(env._image_rgb), obs.shape)
        #  print(i, reward)
