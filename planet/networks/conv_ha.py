@@ -128,7 +128,7 @@ def encoder(obs):
   kwargs = dict(strides=2, activation=tf.nn.relu)
   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-  print(**********************************,hidden,********************************)
+  # print(**********************************,hidden,********************************)
   hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
   hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
@@ -161,9 +161,9 @@ def decoder(state, data_shape):
   hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs) 
   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 1, 9, strides=3)
+  hidden = tf.layers.conv2d_transpose(hidden, 3, 9, strides=3)
   mean = hidden
-  assert mean.shape[1:].as_list() == [96, 96, 1], mean.shape
+  assert mean.shape[1:].as_list() == [96, 96, 3], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
