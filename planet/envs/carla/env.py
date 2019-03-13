@@ -30,9 +30,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 5000,  # 4000 for rgb no sleep 3000 seg no sleep 25 5000 seg no sleep 50
+    "port": 3000,  # 3000 depth 2000 seg
     "discrete_actions": False,
-    "image_mode": "segmentation",   # stack3 encode3 rgb segmentation
+    "image_mode": "depth",   # stack3 encode3 rgb segmentation
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -372,19 +372,18 @@ class CarlaEnv(gym.Env):
             reward += np.clip(info["speed"], 0, 30)/6
             reward += info['distance']
             if info["collision"] == 1:
-                reward -= 10
-
+                reward -= 30
             elif 2 <= info["collision"] < 5:
                 reward -= info['speed'] * 2
             elif info["collision"] > 5:
                 reward -= info['speed'] * 1
 
             print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
-            # new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
-            # if 'S' in new_invasion:     # go across solid lane
-              #   reward -= 3
-            # elif 'B' in new_invasion:   # go across broken lane
-               #  reward -= 2
+            new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
+            if 'S' in new_invasion:     # go across solid lane
+                 reward -= 3
+            elif 'B' in new_invasion:   # go across broken lane
+                 reward -= 2
             return reward
 
         if self.config["discrete_actions"]:
@@ -399,7 +398,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        # time.sleep(0.1)
+        time.sleep(0.07)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
