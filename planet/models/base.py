@@ -52,7 +52,7 @@ class Base(tf.nn.rnn_cell.RNNCell):
     zero_obs = tools.nested.map(tf.zeros_like, obs)
     prior = self.__transition_tpl(prev_state, prev_action, zero_obs)
     posterior = tf.cond(
-        use_obs,
+        use_obs,       # condition flow control
         lambda: self.__posterior_tpl(prev_state, prev_action, obs),
         lambda: prior)
     return (prior, posterior), posterior

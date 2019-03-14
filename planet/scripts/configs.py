@@ -58,7 +58,7 @@ def _data_processing(config, params):
   config.max_episodes = None
   config.scan_episodes_every = params.get('scan_episodes_every', 10)
   config.data_loader = params.get('data_loader', 'scan')
-  config.batch_shape = params.get('batch_shape', (16, 50))
+  config.batch_shape = params.get('batch_shape', (50, 50))  # training batch size, horizon
   config.num_chunks = params.get('num_chunks', 1)
   image_bits = params.get('image_bits', 8)
   config.preprocess_fn = functools.partial(
@@ -81,7 +81,7 @@ def _model_components(config, params):
     config.cell = functools.partial(
         models.SSM, state_size, size, params.mean_only,
         params.get('min_stddev', 1e-1))
-  elif model == 'rssm':
+  elif model == 'rssm':  # use rssm model
     config.cell = functools.partial(
         models.RSSM, state_size, size, size, params.mean_only,
         params.get('min_stddev', 1e-1))
@@ -135,7 +135,7 @@ def _loss_functions(config, params):
 def _training_schedule(config, params):
   config.train_steps = int(params.get('train_steps', 50000))
   config.test_steps = int(params.get('test_steps', 100))
-  config.max_steps = int(params.get('max_steps', 2e7))
+  config.max_steps = int(params.get('max_steps', 6e7))
   config.train_log_every = config.train_steps
   config.train_checkpoint_every = None
   config.test_checkpoint_every = int(
@@ -203,7 +203,7 @@ def _active_collection(config, params):
       sim.steps_after = params.get('collect_every', 5000)
       sim.steps_every = params.get('collect_every', 5000)
       sim.exploration = tools.AttrDict(
-          scale=params.get('exploration_noises', [0.3])[index],
+          scale=params.get('exploration_noises', [0.3])[index],  # adding noise on action
           schedule=functools.partial(
               tools.schedule.linear,
               ramp=params.get('exploration_ramps', [0])[index]))

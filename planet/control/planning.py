@@ -27,8 +27,9 @@ def cross_entropy_method(
     cell, objective_fn, state, obs_shape, action_shape, horizon,
     amount=1000, topk=100, iterations=10, discount=0.99,
     min_action=-1, max_action=1):
+  """algo2 CEM iterate I times for J candidate each time refit model to K best action sequence"""
   obs_shape, action_shape = tuple(obs_shape), tuple(action_shape)
-  original_batch = tools.shape(tools.nested.flatten(state)[0])[0]
+  original_batch = tools.shape(tools.nested.flatten(state)[0])[0]  # state is dict
   initial_state = tools.nested.map(lambda tensor: tf.tile(
       tensor, [amount] + [1] * (tensor.shape.ndims - 1)), state)
   extended_batch = tools.shape(tools.nested.flatten(initial_state)[0])[0]
@@ -59,6 +60,7 @@ def cross_entropy_method(
     stddev = tf.sqrt(variance + 1e-6)
     return mean, stddev
 
+  # initialize at the beginning
   mean = tf.zeros((original_batch, horizon) + action_shape)
   stddev = tf.ones((original_batch, horizon) + action_shape)
   mean, stddev = tf.scan(
