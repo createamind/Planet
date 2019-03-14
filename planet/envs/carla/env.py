@@ -5,10 +5,10 @@ import os
 import sys
 import re
 import weakref
-# try:
-#     sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
-# except IndexError:
-#     pass
+try:
+    sys.path.append('~/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+except IndexError:
+    pass
 
 import carla
 import pygame
@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
+from agents.navigation.local_planner import RoadOption
 # Default environment configuration
 
 """ default is rgb 
@@ -31,8 +32,7 @@ ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
     "port": 3000,  # 3000 depth 2000 seg
-    "discrete_actions": False,
-    "image_mode": "depth",   # stack3 encode3 rgb segmentation
+    "image_mode": "encode",
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -46,31 +46,9 @@ class CarlaEnv(gym.Env):
             "turn_right": 3,
             "turn_left": 4,
         }
-        self.DISCRETE_ACTIONS = {
-            # coast
-            0: [0.0, 0.0],
-            # turn left
-            1: [0.0, -0.5],
-            # turn right
-            2: [0.0, 0.5],
-            # forward
-            3: [1.0, 0.0],
-            # brake
-            4: [-0.5, 0.0],
-            # forward left
-            5: [1.0, -0.5],
-            # forward right
-            6: [1.0, 0.5],
-            # brake left
-            7: [-0.5, -0.5],
-            # brake right
-            8: [-0.5, 0.5],
-        }
 
-        if config["discrete_actions"]:
-            self.action_space = Discrete(len(self.command))
-        else:
-            self.action_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)
+
+        self.action_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)
 
         if ENV_CONFIG["image_mode"] == "encode":
             framestack = 4
@@ -101,16 +79,11 @@ class CarlaEnv(gym.Env):
         self.collision_sensor = None
         self.camera_rgb = None
         self.invasion_sensor = None
-        self.camera_segmentation = None
-        self.camera_depth = None
         # states and data
         self._history_info = []       # info history
         self._history_collision = []  # collision history
         self._history_invasion = []   # invasion history
-        self._image_depth = []        # save a list of depth image
         self._image_rgb = []          # save a list of rgb image
-        self._image_segmentation = []
-        self._image_gray = []
         self._history_waypoint = []
         # initialize our world
         self.server_port = ENV_CONFIG['port']
@@ -140,15 +113,11 @@ class CarlaEnv(gym.Env):
         self.collision_sensor = None
         self.camera_rgb = None
         self.invasion_sensor = None
-        self.camera_segmentation = None
-        self.camera_depth = None
         # states and data
         self._history_info = []       # info history
         self._history_collision = []  # collision history
         self._history_invasion = []   # invasion history
-        self._image_depth = []        # save a list of depth image
         self._image_rgb = []          # save a list of rgb image
-        self._image_segmentation = []
         self._image_gray = []
         self._history_waypoint = []
 
@@ -183,22 +152,6 @@ class CarlaEnv(gym.Env):
             self.camera_rgb = world.try_spawn_actor(camera_rgb, camera_transform, attach_to=self.vehicle)
             self.actor_list.append(self.camera_rgb)
 
-            # setup depth camera
-            camera_depth = bp_library.find('sensor.camera.depth')
-            camera_depth.set_attribute('fov', '120')
-            camera_depth.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-            camera_depth.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-            self.camera_depth = world.try_spawn_actor(camera_depth, camera_transform, attach_to=self.vehicle)
-            self.actor_list.append(self.camera_depth)
-
-            # setup segmentation camera
-            camera_segmentation = bp_library.find('sensor.camera.semantic_segmentation')
-            camera_segmentation.set_attribute('fov', '120')
-            camera_segmentation.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-            camera_segmentation.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-            self.camera_segmentation = world.try_spawn_actor(camera_segmentation, camera_transform, attach_to=self.vehicle)
-            self.actor_list.append(self.camera_segmentation)
-
             # add collision sensors
             bp = bp_library.find('sensor.other.collision')
             self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
@@ -223,46 +176,16 @@ class CarlaEnv(gym.Env):
         # set rgb camera sensor
         self.camera_rgb.listen(lambda image: self._parse_image(weak_self, image,
                                                                carla.ColorConverter.Raw, 'rgb'))
-        # set depth camera sensor
-        self.camera_depth.listen(lambda image: self._parse_image(weak_self, image,
-                                                                 carla.ColorConverter.LogarithmicDepth, 'depth'))
-        # # set segmentation camera sensor
-        # self.camera_segmentation.listen(lambda image: self._parse_image(weak_self, image,
-        #                                                                 carla.ColorConverter.Raw, 'seg'))
-        # set segmentation camera sensor change to cc.CityScapesPalette
-        self.camera_segmentation.listen(lambda image: self._parse_image(weak_self, image,
-                                                                        carla.ColorConverter.CityScapesPalette, 'seg_convert'))
+
         while len(self._image_rgb) < 4:
             print("resetting rgb")
-            time.sleep(0.01)
-        while len(self._image_depth) < 4:
-            print("resetting depth")
-            time.sleep(0.01)
-        while len(self._image_gray) < 4:
-            print("resetting gray")
-            time.sleep(0.01)
-        while len(self._image_segmentation) < 4:
-            print("resetting segmentation")
-            time.sleep(0.01)
+            time.sleep(0.001)
  
  
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([# self._image_gray[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis],
+            obs = np.concatenate([self._image_rgb[-1],
                                   np.zeros([ENV_CONFIG['x_res'], ENV_CONFIG['y_res'], 1])], axis=2)
-        elif ENV_CONFIG["image_mode"] == "stack":
-            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
-        elif ENV_CONFIG["image_mode"] == "segmentation":
-            obs = self._image_segmentation[-1]
-
-        elif ENV_CONFIG["image_mode"] == "depth":
-            obs = np.concatenate([self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis]], axis=2)
         else:
             obs = self._image_rgb[-1]
 
@@ -274,8 +197,7 @@ class CarlaEnv(gym.Env):
             invasion = self._history_invasion[-1]
         else:
             invasion = []
-        command = self.planner()
-       
+        self.planner()
         distance = ((self._history_waypoint[-1].transform.location.x - self.vehicle.get_location().x)**2 + 
                    (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
 
@@ -319,28 +241,11 @@ class CarlaEnv(gym.Env):
             self._image_gray.append(0.45*array[:, :, 0] +
                                     0.45*array[:, :, 1] +
                                     0.1*array[:, :, 2])
-            # if len(self._image_gray) > 32:
-            #     self._image_gray.pop(0)
-            # if len(self._image_rgb) > 32:
-            #     self._image_rgb.pop(0)
-        if use == 'depth':
-            array = convert(cc)
-            # it is the same in each channel of depth image
-            self._image_depth.append(array[:, :, 0])
-            if len(self._image_depth) > 32:
-                self._image_depth.pop(0)
-        if use == 'seg':
-            array = convert(cc)
-            # segmentation information encode in red channel
-            self._image_segmentation.append(array[:, :, 0] * 21)  # 12 labels totally
-            if len(self._image_segmentation) > 32:
-                self._image_segmentation.pop(0)
-        if use == 'seg_convert':
-            array = convert(cc)
-            # segmentation information encode in red channel
-            self._image_segmentation.append(array)  # 12 labels totally
-            if len(self._image_segmentation) > 32:
-                self._image_segmentation.pop(0)
+            if len(self._image_gray) > 32:
+                self._image_gray.pop(0)
+            if len(self._image_rgb) > 32:
+                self._image_rgb.pop(0)
+
 
     @staticmethod
     def _parse_collision(weak_self, event):
@@ -369,7 +274,7 @@ class CarlaEnv(gym.Env):
 
         def compute_reward(info, prev_info):
             reward = 0.0
-            reward += np.clip(info["speed"], 0, 30)/6
+            reward += np.clip(info["speed"], 0, 30)/10
             reward += info['distance']
             if info["collision"] == 1:
                 reward -= 30
@@ -381,13 +286,10 @@ class CarlaEnv(gym.Env):
             print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
-                 reward -= 3
+                 reward -= 4
             elif 'B' in new_invasion:   # go across broken lane
                  reward -= 2
             return reward
-
-        if self.config["discrete_actions"]:
-            action = self.DISCRETE_ACTIONS[int(action)]
 
         throttle = float(np.clip(action[0], 0, 1))
         brake = float(np.abs(np.clip(action[0], -1, 0)))
@@ -398,7 +300,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.045)
+        time.sleep(0.05)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -441,23 +343,7 @@ class CarlaEnv(gym.Env):
                 done = True
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([# self._image_gray[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis],
-                                  self.encode_measurement(info)], axis=2)
-        elif ENV_CONFIG["image_mode"] == "stack":
-            obs = np.concatenate([self._image_gray[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_segmentation[-1][:, :, np.newaxis]], axis=2)
-
-        elif ENV_CONFIG["image_mode"] == "segmentation":
-            obs = self._image_segmentation[-1]
-
-        elif ENV_CONFIG["image_mode"] == "depth":
-            obs = np.concatenate([self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis],
-                                  self._image_depth[-1][:, :, np.newaxis]], axis=2)
-
+            obs = np.concatenate([self._image_rgb[-1], self.encode_measurement(info)], axis=2)
         else:
             obs = self._image_rgb[-1]
 
@@ -490,6 +376,7 @@ class CarlaEnv(gym.Env):
 
     @staticmethod
     def encode_measurement(py_measurements):
+        """encode measurements into another channel"""
         feature_map = np.zeros([4, 4])
         feature_map[0, :] = (py_measurements["command"]) * 60
         feature_map[1, :] = (py_measurements["speed"]) * 4
