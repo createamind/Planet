@@ -141,7 +141,8 @@ class PixelObservations(object):
   @property
   def observation_space(self):
     high = {np.uint8: 255, np.float: 1.0}[self._dtype]
-    image = gym.spaces.Box(0, high, self._size + (3,), dtype=self._dtype)
+    # change to four channel
+    image = gym.spaces.Box(0, high, self._size + (4,), dtype=self._dtype)
     spaces = self._env.observation_space.spaces.copy()
     assert self._key not in spaces
     spaces[self._key] = image

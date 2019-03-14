@@ -6,7 +6,7 @@ import sys
 import re
 import weakref
 try:
-    sys.path.append('~/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
 except IndexError:
     pass
 
@@ -21,7 +21,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
-from agents.navigation.local_planner import RoadOption
+# from agents.navigation.local_planner import RoadOption
+
 # Default environment configuration
 
 """ default is rgb 
@@ -300,7 +301,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.05)
+        time.sleep(0.048)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()

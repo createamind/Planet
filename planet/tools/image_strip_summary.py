@@ -39,6 +39,6 @@ def image_strip_summary(name, images, max_length=100, max_batch=10):
     images = tf.to_float(images) / 255.0
   length, width = tf.shape(images)[1], tf.shape(images)[3]
   images = tf.transpose(images, [0, 2, 1, 3, 4])
-  images = tf.reshape(images, [1, -1, length * width, 3])
+  images = tf.reshape(images, [1, -1, length * width, 4]) # change to four channel
   images = tf.clip_by_value(images, 0., 1.)
   return tf.summary.image(name, images)
