@@ -81,7 +81,7 @@ def _model_components(config, params):
     config.cell = functools.partial(
         models.SSM, state_size, size, params.mean_only,
         params.get('min_stddev', 1e-1))
-  elif model == 'rssm':
+  elif model == 'rssm':  # use rssm model
     config.cell = functools.partial(
         models.RSSM, state_size, size, size, params.mean_only,
         params.get('min_stddev', 1e-1))
@@ -203,7 +203,7 @@ def _active_collection(config, params):
       sim.steps_after = params.get('collect_every', 5000)
       sim.steps_every = params.get('collect_every', 5000)
       sim.exploration = tools.AttrDict(
-          scale=params.get('exploration_noises', [0.3])[index],
+          scale=params.get('exploration_noises', [0.3])[index],  # adding noise on action
           schedule=functools.partial(
               tools.schedule.linear,
               ramp=params.get('exploration_ramps', [0])[index]))

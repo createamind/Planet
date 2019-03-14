@@ -5,10 +5,10 @@ import os
 import sys
 import re
 import weakref
-try:
-    sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
-except IndexError:
-    pass
+# try:
+#     sys.path.append('/data/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
+# except IndexError:
+#     pass
 
 import carla
 import pygame
@@ -319,10 +319,10 @@ class CarlaEnv(gym.Env):
             self._image_gray.append(0.45*array[:, :, 0] +
                                     0.45*array[:, :, 1] +
                                     0.1*array[:, :, 2])
-            if len(self._image_gray) > 32:
-                self._image_gray.pop(0)
-            if len(self._image_rgb) > 32:
-                self._image_rgb.pop(0)
+            # if len(self._image_gray) > 32:
+            #     self._image_gray.pop(0)
+            # if len(self._image_rgb) > 32:
+            #     self._image_rgb.pop(0)
         if use == 'depth':
             array = convert(cc)
             # it is the same in each channel of depth image
@@ -398,7 +398,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.07)
+        time.sleep(0.045)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -507,13 +507,10 @@ if __name__ == '__main__':
     print(obs.shape)
     done = False
     i = 0
-    while not done:
-        env.render()
+    start = time.time()
+    while i<200:
+        #env.render()
         obs, reward, done, info = env.step([1, 0])
-        # print(len(env._image_rgb), obs.shape)
-       #  print(i, reward)
         i += 1
-    # for actor in env.actor_list:
-    #     print(actor.id)
-    #     actor.destroy()
-    #     print("test", actor.is_alive)
+    print("{:.2f} fps".format(float(len(env._image_rgb) / (time.time() - start))))
+    print("{:.2f} fps".format(float(i / (time.time() - start))))
