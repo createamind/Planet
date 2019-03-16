@@ -276,7 +276,7 @@ class CarlaEnv(gym.Env):
         def compute_reward(info, prev_info):
             reward = 0.0
             reward += np.clip(info["speed"], 0, 30)/10
-            reward += info['distance']
+            reward += info['distance']  # encourage agent get closer to waypoint
             if info["collision"] == 1:
                 reward -= 30
             elif 2 <= info["collision"] < 5:
@@ -287,9 +287,9 @@ class CarlaEnv(gym.Env):
             print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
-                 reward -= 4
+                 reward -= 6
             elif 'B' in new_invasion:   # go across broken lane
-                 reward -= 2
+                 reward -= 3
             return reward
 
         throttle = float(np.clip(action[0], 0, 1))
