@@ -5,11 +5,6 @@ import os
 import sys
 import re
 import weakref
-try:
-    sys.path.append('~/Documents/carla94/PythonAPI/carla-0.9.4-py3.5-linux-x86_64.egg')
-except IndexError:
-    pass
-
 import carla
 import pygame
 import random
@@ -30,8 +25,9 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 2000,
+    "port": 12345,
     "image_mode": "encode",
+    "localhost": "192.168.100.37", 
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -58,7 +54,7 @@ class CarlaEnv(gym.Env):
         image_space = Box(
             0,
             255,
-            shape=(config["y_res"], config["x_res"], framestack),
+            shape=(config["y_res"], config["x_res"], 7),
             dtype=np.uint8)
         self.observation_space = image_space
         # environment config
@@ -91,7 +87,7 @@ class CarlaEnv(gym.Env):
         connect_fail_times = 0
         while self.world is None:
             try:
-                self.client = carla.Client("localhost", self.server_port)
+                self.client = carla.Client(ENV_CONFIG["localhost"], self.server_port)
                 self.client.set_timeout(120.0)
                 self.world = self.client.get_world()
                 self.map = self.world.get_map()
@@ -144,7 +140,7 @@ class CarlaEnv(gym.Env):
             self.actor_list.append(self.vehicle)
 
             # setup rgb camera1
-            camera_transform = carla.Transform(carla.Location(x=1, y=-0.5, z=2))
+            camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
             camera_rgb1 = bp_library.find('sensor.camera.rgb')
             camera_rgb1.set_attribute('fov', '120')
             camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
@@ -153,13 +149,13 @@ class CarlaEnv(gym.Env):
             self.actor_list.append(self.camera_rgb1)
 
             # setup rgb camera2
-            camera_transform = carla.Transform(carla.Location(x=1, y=0.5, z=2))
-            camera_rgb2 = bp_library.find('sensor.camera.rgb')
-            camera_rgb2.set_attribute('fov', '120')
-            camera_rgb2.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-            camera_rgb2.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-            self.camera_rgb2 = world.try_spawn_actor(camera_rgb2, camera_transform, attach_to=self.vehicle)
-            self.actor_list.append(self.camera_rgb2)
+#            camera_transform = carla.Transform(carla.Location(x=1, y=0.5, z=2))
+ #           camera_rgb2 = bp_library.find('sensor.camera.rgb')
+  #          camera_rgb2.set_attribute('fov', '120')
+   #         camera_rgb2.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+    #        camera_rgb2.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+     #       self.camera_rgb2 = world.try_spawn_actor(camera_rgb2, camera_transform, attach_to=self.vehicle)
+      #      self.actor_list.append(self.camera_rgb2)
 
             # add collision sensors
             bp = bp_library.find('sensor.other.collision')
@@ -185,13 +181,13 @@ class CarlaEnv(gym.Env):
         # set rgb camera sensor
         self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image,
                                                                cc.Raw, 'rgb'))
-        self.camera_rgb2.listen(lambda image: self._parse_image2(weak_self, image,
-                                                               cc.Raw, 'rgb'))
-        while len(self._image_rgb1)<4 or len(self._image_rgb2)< 4:
+       # self.camera_rgb2.listen(lambda image: self._parse_image2(weak_self, image,
+        #                                                       cc.Raw, 'rgb'))
+        while len(self._image_rgb1)<4:
             print("resetting rgb")
             time.sleep(0.001)
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb2[-1],
+            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb1[-2],
                                   np.zeros([ENV_CONFIG['x_res'], ENV_CONFIG['y_res'], 1])], axis=2)
         else:
             obs = self._image_rgb1[-1]
@@ -362,7 +358,7 @@ class CarlaEnv(gym.Env):
                 done = True
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb2[-1],
+            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb1[-2],
                                   self.encode_measurement(info)], axis=2)
         else:
             obs = self._image_rgb1[-1]
@@ -416,7 +412,7 @@ if __name__ == '__main__':
     start = time.time()
     R = 0
     while i<200:
-        env.render()
+    #    env.render()
         obs, reward, done, info = env.step([1, 0])
         R += reward
         i += 1
