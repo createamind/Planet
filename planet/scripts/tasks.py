@@ -227,7 +227,7 @@ def _dm_control_env_carla(action_repeat, max_length, env_name):
     env = DeepMindWrapper_carla(env, (96, 96))
     env = control.wrappers.ActionRepeat(env, action_repeat)
     env = control.wrappers.LimitDuration(env, max_length)
-    env = control.wrappers.PixelObservations(env, (96, 96), np.uint8, 'image')
+    env = control.wrappers.PixelObservations(env, (96, 96), np.float32, 'image')
     env = control.wrappers.ConvertTo32Bit(env)
     return env
   env = control.wrappers.ExternalProcess(env_ctor)

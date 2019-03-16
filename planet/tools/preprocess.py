@@ -18,10 +18,9 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-
 def preprocess(image, bits):
   bins = 2 ** bits
-  image = tf.to_float(image)
+  image = tf.cast(image, tf.float32)
   if bits < 8:
     image = tf.floor(image / 2 ** (8 - bits))
   image = image / bins

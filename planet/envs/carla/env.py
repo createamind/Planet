@@ -21,7 +21,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
-from agents.navigation.local_planner import RoadOption
 # Default environment configuration
 
 """ default is rgb 
@@ -31,7 +30,7 @@ from agents.navigation.local_planner import RoadOption
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 3000,  # 3000 depth 2000 seg
+    "port": 2000,
     "image_mode": "encode",
     "early_stop": False,      # if we use planet this has to be False
 }
@@ -77,13 +76,15 @@ class CarlaEnv(gym.Env):
         self.actor_list = []          # save actor list for destroying them after finish
         self.vehicle = None
         self.collision_sensor = None
-        self.camera_rgb = None
+        self.camera_rgb1 = None
+        self.camera_rgb2 = None
         self.invasion_sensor = None
         # states and data
         self._history_info = []       # info history
         self._history_collision = []  # collision history
         self._history_invasion = []   # invasion history
-        self._image_rgb = []          # save a list of rgb image
+        self._image_rgb1 = []          # save a list of rgb image
+        self._image_rgb2 = []          # save a list of rgb image
         self._history_waypoint = []
         # initialize our world
         self.server_port = ENV_CONFIG['port']
@@ -117,8 +118,8 @@ class CarlaEnv(gym.Env):
         self._history_info = []       # info history
         self._history_collision = []  # collision history
         self._history_invasion = []   # invasion history
-        self._image_rgb = []          # save a list of rgb image
-        self._image_gray = []
+        self._image_rgb1 = []          # save a list of rgb image
+        self._image_rgb2 = []
         self._history_waypoint = []
 
         # destroy actors in the world before we start new episode
@@ -143,14 +144,23 @@ class CarlaEnv(gym.Env):
             self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
             self.actor_list.append(self.vehicle)
 
-            # setup rgb camera
-            camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
-            camera_rgb = bp_library.find('sensor.camera.rgb')
-            camera_rgb.set_attribute('fov', '120')
-            camera_rgb.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-            camera_rgb.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-            self.camera_rgb = world.try_spawn_actor(camera_rgb, camera_transform, attach_to=self.vehicle)
-            self.actor_list.append(self.camera_rgb)
+            # setup rgb camera1
+            camera_transform = carla.Transform(carla.Location(x=1, y=-0.5, z=2))
+            camera_rgb1 = bp_library.find('sensor.camera.rgb')
+            camera_rgb1.set_attribute('fov', '120')
+            camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            camera_rgb1.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle)
+            self.actor_list.append(self.camera_rgb1)
+
+            # setup rgb camera2
+            camera_transform = carla.Transform(carla.Location(x=1, y=0.5, z=2))
+            camera_rgb2 = bp_library.find('sensor.camera.rgb')
+            camera_rgb2.set_attribute('fov', '120')
+            camera_rgb2.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            camera_rgb2.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            self.camera_rgb2 = world.try_spawn_actor(camera_rgb2, camera_transform, attach_to=self.vehicle)
+            self.actor_list.append(self.camera_rgb2)
 
             # add collision sensors
             bp = bp_library.find('sensor.other.collision')
@@ -174,20 +184,18 @@ class CarlaEnv(gym.Env):
         # set collision sensor
         self.collision_sensor.listen(lambda event: self._parse_collision(weak_self, event))
         # set rgb camera sensor
-        self.camera_rgb.listen(lambda image: self._parse_image(weak_self, image,
-                                                               carla.ColorConverter.Raw, 'rgb'))
-
-        while len(self._image_rgb) < 4:
+        self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image,
+                                                               cc.Raw, 'rgb'))
+        self.camera_rgb2.listen(lambda image: self._parse_image2(weak_self, image,
+                                                               cc.Raw, 'rgb'))
+        while len(self._image_rgb1)<4 or len(self._image_rgb2)< 4:
             print("resetting rgb")
             time.sleep(0.001)
- 
- 
-
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_rgb[-1],
+            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb2[-1],
                                   np.zeros([ENV_CONFIG['x_res'], ENV_CONFIG['y_res'], 1])], axis=2)
         else:
-            obs = self._image_rgb[-1]
+            obs = self._image_rgb1[-1]
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -221,7 +229,7 @@ class CarlaEnv(gym.Env):
         return obs
 
     @staticmethod
-    def _parse_image(weak_self, image, cc, use):
+    def _parse_image1(weak_self, image, cc, use):
         """convert BGRA to RGB"""
         self = weak_self()
         if not self:
@@ -229,7 +237,6 @@ class CarlaEnv(gym.Env):
 
         def convert(cc):
             image.convert(cc)
-            # image.save_to_disk('_out/%08d' % image.frame_number)
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (image.height, image.width, 4))
             array = array[:, :, -2:-5:-1]
@@ -237,15 +244,28 @@ class CarlaEnv(gym.Env):
 
         if use == 'rgb':
             array = convert(cc)
-            self._image_rgb.append(array)
-            self._image_gray.append(0.45*array[:, :, 0] +
-                                    0.45*array[:, :, 1] +
-                                    0.1*array[:, :, 2])
-            if len(self._image_gray) > 32:
-                self._image_gray.pop(0)
-            if len(self._image_rgb) > 32:
-                self._image_rgb.pop(0)
+            self._image_rgb1.append(array)
+            if len(self._image_rgb1) > 32:
+                self._image_rgb1.pop(0)
+    @staticmethod
+    def _parse_image2(weak_self, image, cc, use):
+        """convert BGRA to RGB"""
+        self = weak_self()
+        if not self:
+            return
 
+        def convert(cc):
+            image.convert(cc)
+            array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+            array = np.reshape(array, (image.height, image.width, 4))
+            array = array[:, :, -2:-5:-1]
+            return array
+
+        if use == 'rgb':
+            array = convert(cc)
+            self._image_rgb2.append(array)
+            if len(self._image_rgb2) > 32:
+                self._image_rgb2.pop(0)
 
     @staticmethod
     def _parse_collision(weak_self, event):
@@ -274,7 +294,7 @@ class CarlaEnv(gym.Env):
 
         def compute_reward(info, prev_info):
             reward = 0.0
-            reward += np.clip(info["speed"], 0, 30)/10
+            reward += np.clip(info["speed"], 0, 15)/4
             reward += info['distance']
             if info["collision"] == 1:
                 reward -= 30
@@ -286,9 +306,9 @@ class CarlaEnv(gym.Env):
             print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
-                 reward -= 4
+                 reward -= info["speed"]
             elif 'B' in new_invasion:   # go across broken lane
-                 reward -= 2
+                 reward -= 0.4 * info["speed"]
             return reward
 
         throttle = float(np.clip(action[0], 0, 1))
@@ -343,9 +363,10 @@ class CarlaEnv(gym.Env):
                 done = True
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
-            obs = np.concatenate([self._image_rgb[-1], self.encode_measurement(info)], axis=2)
+            obs = np.concatenate([self._image_rgb1[-1], self._image_rgb2[-1],
+                                  self.encode_measurement(info)], axis=2)
         else:
-            obs = self._image_rgb[-1]
+            obs = self._image_rgb1[-1]
 
         return obs, reward, done, self._history_info[-1]
 
@@ -354,7 +375,7 @@ class CarlaEnv(gym.Env):
         display = pygame.display.set_mode(
             (ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
-        surface = pygame.surfarray.make_surface(env._image_rgb[-1].swapaxes(0, 1))
+        surface = pygame.surfarray.make_surface(env._image_rgb1[-1].swapaxes(0, 1))
         display.blit(surface, (0, 0))
         time.sleep(0.01)
         pygame.display.flip()
@@ -370,20 +391,19 @@ class CarlaEnv(gym.Env):
             command = "lane_keep"
         elif yaw > 120 or yaw < -90:
             command = "turn_left"
-        distance = ((waypoint.transform.location.x - self.vehicle.get_location().x)**2 + 
-                   (waypoint.transform.location.y - self.vehicle.get_location().y)**2)**0.5
         return self.command[command]
 
     @staticmethod
     def encode_measurement(py_measurements):
         """encode measurements into another channel"""
         feature_map = np.zeros([4, 4])
-        feature_map[0, :] = (py_measurements["command"]) * 60
-        feature_map[1, :] = (py_measurements["speed"]) * 4
-        feature_map[2, :] = (py_measurements["command"]) * 60
-        feature_map[3, :] = (py_measurements["acceleration"]) * 20
+        feature_map[0, :] = (py_measurements["command"]) * 60.0
+        feature_map[1, :] = (py_measurements["speed"]) * 4.0
+        feature_map[2, :] = (py_measurements["command"]) * 60.0
+        feature_map[3, :] = (py_measurements["Steer"]+1) * 120.0
         stack = int(ENV_CONFIG["x_res"]/4)
         feature_map = np.tile(feature_map, (stack, stack))
+        feature_map = feature_map.astype(np.float32)
         return feature_map[:, :, np.newaxis]
 
 
@@ -395,9 +415,12 @@ if __name__ == '__main__':
     done = False
     i = 0
     start = time.time()
+    R = 0
     while i<200:
-        #env.render()
+        env.render()
         obs, reward, done, info = env.step([1, 0])
+        R += reward
         i += 1
-    print("{:.2f} fps".format(float(len(env._image_rgb) / (time.time() - start))))
+    print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
     print("{:.2f} fps".format(float(i / (time.time() - start))))
+    print(R)

@@ -34,7 +34,7 @@ import tensorflow as tf
 
 from planet.tools import nested
 
-
+num_channel = 7
 class ObservationDict(object):
 
   def __init__(self, env, key='observ'):
@@ -140,8 +140,8 @@ class PixelObservations(object):
 
   @property
   def observation_space(self):
-    high = {np.uint8: 255, np.float: 1.0}[self._dtype]
-    image = gym.spaces.Box(0, high, self._size + (3,), dtype=self._dtype)
+    high = {np.uint8: 255, np.float: 1.0, np.float32: 255.0, np.float64: 255.0}[self._dtype]
+    image = gym.spaces.Box(0, high, self._size + (num_channel,), dtype=self._dtype)
     spaces = self._env.observation_space.spaces.copy()
     assert self._key not in spaces
     spaces[self._key] = image
@@ -166,15 +166,9 @@ class PixelObservations(object):
     if image.shape[:2] != self._size:
       kwargs = dict(mode='edge', order=1, preserve_range=True)
       image = skimage.transform.resize(image, self._size, **kwargs)
-    # making some transform change the data type of image into data type we want
+    # change datatpye of image for now we can use float32 for all 7 channel
     if self._dtype and image.dtype != self._dtype:
-      if image.dtype in (np.float32, np.float64) and self._dtype == np.uint8:
-        image = (image * 255).astype(self._dtype)
-      elif image.dtype == np.uint8 and self._dtype in (np.float32, np.float64):
-        image = image.astype(self._dtype) / 255
-      else:
-        message = 'Cannot convert observations from {} to {}.'
-        raise NotImplementedError(message.format(image.dtype, self._dtype))
+      image = image.astype(self._dtype)
     return image
 
 

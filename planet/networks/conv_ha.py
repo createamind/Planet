@@ -27,9 +27,8 @@ from tensorflow.contrib.layers import batch_norm, flatten
 from tensorflow.contrib.framework import arg_scope
 
 # Hyperparameter
-growth_k = 24  # growth rate, how many feature map we generate each layer
-nb_block = 5        # how many (dense block + Transition Layer)
-
+growth_k = 17  # growth rate, how many feature map we generate each layer
+num_channel = 7
 # 96*96*3
 
 def conv_layer(input, filter, kernel, stride=1, layer_name="conv"):
@@ -63,15 +62,10 @@ def Max_Pooling(x, pool_size=[3, 3], stride=2, padding='VALID'):
 
 def Concatenation(layers) :
     return tf.concat(layers, axis=3)
-#
-#
-# def Linear(x) :
-#     return tf.layers.dense(inputs=x, units=class_num, name='linear')
 
 
 class DenseNet():
-    def __init__(self, x, nb_blocks, filters):
-        self.nb_blocks = nb_blocks
+    def __init__(self, x, filters):
         self.filters = filters
         self.model = self.Dense_net(x)
 
@@ -90,9 +84,18 @@ class DenseNet():
         """connect different dense net block"""
         with tf.name_scope(scope):
             x = Relu(x)
-            x = conv_layer(x, filter=4, kernel=[3, 3], layer_name=scope+'_conv1')
+            in_channel = x.shape[-1]
+            x = conv_layer(x, filter=int(int(in_channel)*0.5), kernel=[1, 1], layer_name=scope+'_conv1')
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
+            return x
 
+    def transition_layer_special(self, x, scope):
+        """adjust number of filters in last layer to matching latent space"""
+        with tf.name_scope(scope):
+            x = Relu(x)
+            in_channel = x.shape[-1]
+            x = conv_layer(x, filter=int(int(in_channel)*0.5)+3, kernel=[1, 1], layer_name=scope+'_conv1')
+            x = Average_pooling(x, pool_size=[2, 2], stride=2)
             return x
 
     def dense_block(self, input_x, nb_layers, layer_name):
@@ -115,55 +118,61 @@ class DenseNet():
             return x
 
     def Dense_net(self, input_x):
-        """Dense net composed with many block and the transition layers between those block"""
-        x = conv_layer(input_x, filter=48, kernel=[5, 5], stride=3, layer_name='conv0')
-        x = self.dense_block(input_x=x, nb_layers=5, layer_name='dense_1')
+        """Dense net composed with many block and the transition layers between those block
+        self.filters:growth_k"""
+        x = conv_layer(input_x, filter=48, kernel=[5, 5], stride=2, layer_name='conv0', padding='SAME')
+        x = self.dense_block(input_x=x, nb_layers=6, layer_name='dense_1')
         x = self.transition_layer(x, scope='trans_1')
+        x = self.dense_block(input_x=x, nb_layers=12, layer_name='dense_2')
+        x = self.transition_layer(x, scope='trans_2')
+        x = self.dense_block(input_x=x, nb_layers=48, layer_name='dense_3')
+        x = self.transition_layer_special(x, scope='trans_3')
+        x = self.dense_block(input_x=x, nb_layers=32, layer_name='dense_final')
+        x = Relu(x)
+        x = Global_Average_Pooling(x)
         x = flatten(x)
-
         return x
 
-def encoder(obs):
-  """Extract deterministic features from an observation."""
-  kwargs = dict(strides=2, activation=tf.nn.relu)
-  # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
-  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-  # print(**********************************,hidden,********************************)
-  hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
-  # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
-  hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
-#   print(hidden)
-  hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
-  # print(hidden)
-  hidden = tf.layers.flatten(hidden)
-
-  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
-      np.prod(hidden.shape[1:].as_list())])
-  return hidden                                                                # shape(50,50,1024)
-
 # def encoder(obs):
-#   print("*****************************************input shape is******************************************************", obs['image'].shape)
+#   """Extract deterministic features from an observation."""
+#   kwargs = dict(strides=2, activation=tf.nn.relu)
+#   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
 #   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-#  #  hidden = tf.reshape(obs['image'], [-1, 96, 96, 3])
-#   hidden = DenseNet(x=hidden, nb_blocks=nb_block, filters=growth_k).model
+#   # print(**********************************,hidden,********************************)
+#   hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
+#   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
+#   hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
+#   hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
+#   hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
+# #   print(hidden)
+#   hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
+#   # print(hidden)
+#   hidden = tf.layers.flatten(hidden)
+#
 #   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-#   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
-#   return hidden
+#   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
+#       np.prod(hidden.shape[1:].as_list())])
+#   return hidden                                                                # shape(50,50,1024)
+
+def encoder(obs):
+  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+  hidden = DenseNet(x=hidden, filters=growth_k).model
+  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
+  return hidden
 
 def decoder(state, data_shape):
   """Compute the data distribution of an observation from its state."""
   kwargs = dict(strides=2, activation=tf.nn.relu)
   hidden = tf.layers.dense(state, 1024, None)
   hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
-  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs) 
-  hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 3, 9, strides=3)
+  hidden = tf.layers.conv2d_transpose(hidden, 200, 3, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 64, 6, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
   mean = hidden
-  assert mean.shape[1:].as_list() == [96, 96, 3], mean.shape
+  assert mean.shape[1:].as_list() == [96, 96, num_channel], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
