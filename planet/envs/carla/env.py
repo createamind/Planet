@@ -35,7 +35,6 @@ ENV_CONFIG = {
     "early_stop": False,      # if we use planet this has to be False
 }
 
-
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
         self.config = config
