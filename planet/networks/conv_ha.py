@@ -27,7 +27,7 @@ from tensorflow.contrib.layers import batch_norm, flatten
 from tensorflow.contrib.framework import arg_scope
 
 # Hyperparameter
-growth_k = 12  # growth rate, how many feature map we generate each layer
+growth_k = 8  # growth rate, how many feature map we generate each layer
 num_channel = 7
 # 96*96*3
 
@@ -85,7 +85,7 @@ class DenseNet():
         with tf.name_scope(scope):
             x = Relu(x)
             in_channel = x.shape[-1]
-            x = conv_layer(x, filter=int(int(in_channel)*0.5), kernel=[1, 1], layer_name=scope+'_conv1')
+            x = conv_layer(x, filter=int(int(in_channel)*0.3), kernel=[1, 1], layer_name=scope+'_conv1')
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
             return x
 
@@ -113,13 +113,13 @@ class DenseNet():
         """Dense net composed with many block and the transition layers between those block
         self.filters:growth_k"""
         x = conv_layer(input_x, filter=48, kernel=[5, 5], stride=2, layer_name='conv0', padding='SAME')
-        x = self.dense_block(input_x=x, nb_layers=6, layer_name='dense_1')
+        x = self.dense_block(input_x=x, nb_layers=8, layer_name='dense_1')
         x = self.transition_layer(x, scope='trans_1')
-        x = self.dense_block(input_x=x, nb_layers=12, layer_name='dense_2')
+        x = self.dense_block(input_x=x, nb_layers=8, layer_name='dense_2')
         x = self.transition_layer(x, scope='trans_2')
-        x = self.dense_block(input_x=x, nb_layers=16, layer_name='dense_3')
+        x = self.dense_block(input_x=x, nb_layers=8, layer_name='dense_3')
         x = self.transition_layer(x, scope='trans_3')
-        x = self.dense_block(input_x=x, nb_layers=20, layer_name='dense_final')
+        x = self.dense_block(input_x=x, nb_layers=9, layer_name='dense_final')
         x = Relu(x)
         x = conv_layer(x, filter=1024, kernel=[6, 6], stride=1, layer_name="conv_flatten", padding='VALID')
         x = Relu(x)
@@ -159,9 +159,9 @@ def decoder(state, data_shape):
   kwargs = dict(strides=2, activation=tf.nn.relu)
   hidden = tf.layers.dense(state, 1024, None)
   hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
-  hidden = tf.layers.conv2d_transpose(hidden, 164, 3, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 64, 6, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 128, 3, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 48, 6, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
   mean = hidden
