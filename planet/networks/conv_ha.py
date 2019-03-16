@@ -31,9 +31,9 @@ growth_k = 17  # growth rate, how many feature map we generate each layer
 num_channel = 7
 # 96*96*3
 
-def conv_layer(input, filter, kernel, stride=1, layer_name="conv"):
+def conv_layer(input, filter, kernel, stride=1, layer_name="conv", padding='SAME'):
     with tf.name_scope(layer_name):
-        network = tf.layers.conv2d(inputs=input, filters=filter, kernel_size=kernel, strides=stride, padding='SAME')
+        network = tf.layers.conv2d(inputs=input, filters=filter, kernel_size=kernel, strides=stride, padding=padding)
         return network
 
 def Global_Average_Pooling(x, stride=1):
