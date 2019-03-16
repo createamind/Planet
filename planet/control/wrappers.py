@@ -146,7 +146,7 @@ class PixelObservations(object):
     spaces = self._env.observation_space.spaces.copy()
     assert self._key not in spaces
     spaces[self._key] = image
-    return gym.spaces.Dict(spaces)
+    return gym.spaces.Dict(spaces) # return dict space
 
   @property
   def action_space(self):
@@ -167,6 +167,7 @@ class PixelObservations(object):
     if image.shape[:2] != self._size:
       kwargs = dict(mode='edge', order=1, preserve_range=True)
       image = skimage.transform.resize(image, self._size, **kwargs)
+    # making some transform change the data type of image into data type we want
     if self._dtype and image.dtype != self._dtype:
       if image.dtype in (np.float32, np.float64) and self._dtype == np.uint8:
         image = (image * 255).astype(self._dtype)
@@ -277,13 +278,17 @@ class LimitDuration(object):
     if self._step is None:
       raise RuntimeError('Must reset environment.')
     observ, reward, done, info = self._env.step(action)
+    self.step_error = False
     #print(done)
     self._step += 1
     if self._step >= self._duration:
       done = True
       self._step = None
     else:
-      assert not done
+      # assert not done
+      if done:
+        print('step error... please check the env.')
+        self.step_error = True
     return observ, reward, done, info
 
   def reset(self):
@@ -390,7 +395,9 @@ class CollectGymDataset(object):
     else:
       episode = self._get_episode()
       info['episode'] = episode
-      if self._outdir:
+      if self.step_error:
+        print('step error... the episode will NOT be saved.')
+      elif self._outdir:
         filename = self._get_filename()
         self._write(episode, filename)
     return observ, reward, done, info
