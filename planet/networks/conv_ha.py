@@ -31,9 +31,9 @@ growth_k = 12  # growth rate, how many feature map we generate each layer
 num_channel = 7
 # 96*96*3
 
-def conv_layer(input, filter, kernel, stride=1, layer_name="conv"):
+def conv_layer(input, filter, kernel, stride=1, layer_name="conv", padding='SAME'):
     with tf.name_scope(layer_name):
-        network = tf.layers.conv2d(inputs=input, filters=filter, kernel_size=kernel, strides=stride, padding='SAME')
+        network = tf.layers.conv2d(inputs=input, filters=filter, kernel_size=kernel, strides=stride, padding=padding)
         return network
 
 def Global_Average_Pooling(x, stride=1):
@@ -89,14 +89,6 @@ class DenseNet():
             x = Average_pooling(x, pool_size=[2, 2], stride=2)
             return x
 
-    def transition_layer_special(self, x, scope):
-        """adjust number of filters in last layer to matching latent space"""
-        with tf.name_scope(scope):
-            x = Relu(x)
-            in_channel = x.shape[-1]
-            x = conv_layer(x, filter=int(int(in_channel)*0.5)+3, kernel=[1, 1], layer_name=scope+'_conv1')
-            x = Average_pooling(x, pool_size=[2, 2], stride=2)
-            return x
 
     def dense_block(self, input_x, nb_layers, layer_name):
         """nb_layers: how many layers(BN-Relu-1*1conv-dropout-BN-Relu-3*3conv-dropout ) in block"""
@@ -126,11 +118,11 @@ class DenseNet():
         x = self.dense_block(input_x=x, nb_layers=12, layer_name='dense_2')
         x = self.transition_layer(x, scope='trans_2')
         x = self.dense_block(input_x=x, nb_layers=16, layer_name='dense_3')
-        x = self.transition_layer_special(x, scope='trans_3')
+        x = self.transition_layer(x, scope='trans_3')
         x = self.dense_block(input_x=x, nb_layers=20, layer_name='dense_final')
         x = Relu(x)
         x = conv_layer(x, filter=1024, kernel=[6, 6], stride=1, layer_name="conv_flatten", padding='VALID')
-        # x = Global_Average_Pooling(x)
+        x = Relu(x)
         x = flatten(x)
         return x
 
