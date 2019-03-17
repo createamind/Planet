@@ -32,6 +32,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
+    "host": "192.168.100.36",
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -92,7 +93,7 @@ class CarlaEnv(gym.Env):
         connect_fail_times = 0
         while self.world is None:
             try:
-                self.client = carla.Client("192.168.100.37", self.server_port)
+                self.client = carla.Client(ENV_CONFIG["host"], self.server_port)
                 self.client.set_timeout(120.0)
                 self.world = self.client.get_world()
                 self.map = self.world.get_map()
@@ -178,15 +179,15 @@ class CarlaEnv(gym.Env):
 
     def reset(self):
         self.restart()
-        weak_self = weakref.ref(self)
+        # weak_self = weakref.ref(self)
         # set invasion sensor
-        self.invasion_sensor.listen(lambda event: self._parse_invasion(weak_self, event))
+        self.invasion_sensor.listen(lambda event: self._parse_invasion(event))
         # set collision sensor
-        self.collision_sensor.listen(lambda event: self._parse_collision(weak_self, event))
+        self.collision_sensor.listen(lambda event: self._parse_collision(event))
         # set rgb camera sensor
-        self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image,
+        self.camera_rgb1.listen(lambda image: self._parse_image1(image,
                                                                cc.Raw, 'rgb'))
-        self.camera_rgb2.listen(lambda image: self._parse_image2(weak_self, image,
+        self.camera_rgb2.listen(lambda image: self._parse_image2(image,
                                                                cc.Raw, 'rgb'))
         while len(self._image_rgb1)<4 or len(self._image_rgb2)< 4:
             print("resetting rgb")
@@ -228,12 +229,8 @@ class CarlaEnv(gym.Env):
 
         return obs
 
-    @staticmethod
-    def _parse_image1(weak_self, image, cc, use):
+    def _parse_image1(self, image, cc, use):
         """convert BGRA to RGB"""
-        self = weak_self()
-        if not self:
-            return
 
         def convert(cc):
             image.convert(cc)
@@ -247,12 +244,10 @@ class CarlaEnv(gym.Env):
             self._image_rgb1.append(array)
             if len(self._image_rgb1) > 32:
                 self._image_rgb1.pop(0)
-    @staticmethod
-    def _parse_image2(weak_self, image, cc, use):
+
+    def _parse_image2(self, image, cc, use):
         """convert BGRA to RGB"""
-        self = weak_self()
-        if not self:
-            return
+
 
         def convert(cc):
             image.convert(cc)
@@ -267,22 +262,15 @@ class CarlaEnv(gym.Env):
             if len(self._image_rgb2) > 32:
                 self._image_rgb2.pop(0)
 
-    @staticmethod
-    def _parse_collision(weak_self, event):
-        self = weak_self()
-        if not self:
-            return
+    def _parse_collision(self, event):
         impulse = event.normal_impulse
         intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
         self._history_collision.append((event.frame_number, intensity))
         if len(self._history_collision) > 32:
             self._history_collision.pop(0)
 
-    @staticmethod
-    def _parse_invasion(weak_self, event):
-        self = weak_self()
-        if not self:
-            return
+
+    def _parse_invasion(self, event):
         # print(str(event.crossed_lane_markings)) [carla.libcarla.LaneMarking.Solid]
         text = ['%r' % str(x).split()[-1] for x in set(event.crossed_lane_markings)]
         # S for Solid B for Broken
