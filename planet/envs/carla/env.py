@@ -25,7 +25,7 @@ from gym.spaces import Box, Discrete, Tuple
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 12345,
+    "port": 2000,
     "image_mode": "encode",
     "localhost": "192.168.100.37", 
     "early_stop": False,      # if we use planet this has to be False

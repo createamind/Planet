@@ -28,7 +28,7 @@ from tensorflow.contrib.framework import arg_scope
 
 # Hyperparameter
 growth_k = 8  # growth rate, how many feature map we generate each layer
-num_channel = 7
+num_channel = 4
 # 96*96*3
 
 def conv_layer(input, filter, kernel, stride=1, layer_name="conv", padding='SAME'):
@@ -126,33 +126,32 @@ class DenseNet():
         x = flatten(x)
         return x
 
-# def encoder(obs):
-#   """Extract deterministic features from an observation."""
-#   kwargs = dict(strides=2, activation=tf.nn.relu)
-#   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
-#   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-#   # print(**********************************,hidden,********************************)
-#   hidden = tf.layers.conv2d(hidden, 24, 8, **kwargs)
-#   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 48, 5, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
-#   hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
-# #   print(hidden)
-#   hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
-#   # print(hidden)
-#   hidden = tf.layers.flatten(hidden)
-#
-#   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-#   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
-#       np.prod(hidden.shape[1:].as_list())])
-#   return hidden                                                                # shape(50,50,1024)
-
 def encoder(obs):
-  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-  hidden = DenseNet(x=hidden, filters=growth_k).model
-  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
-  return hidden
+#   """Extract deterministic features from an observation."""
+   kwargs = dict(strides=2, activation=tf.nn.relu)
+#   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
+   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+#   # print(**********************************,hidden,********************************)
+   hidden = tf.layers.conv2d(hidden, 32, 8, **kwargs)
+#   # hidden = tf.layers.conv2d(hidden, 32, 4, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 72, 5, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
+# #   print(hidden)
+   hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
+#   # print(hidden)
+   hidden = tf.layers.flatten(hidden)
+   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
+       np.prod(hidden.shape[1:].as_list())])
+   return hidden                                                                # shape(50,50,1024)
+
+#def encoder(obs):
+#  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+#  hidden = DenseNet(x=hidden, filters=growth_k).model
+#  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+#  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
+#  return hidden
 
 def decoder(state, data_shape):
   """Compute the data distribution of an observation from its state."""
@@ -165,7 +164,8 @@ def decoder(state, data_shape):
   hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
   mean = hidden
-  assert mean.shape[1:].as_list() == [96, 96, num_channel], mean.shape
+  # print(mean)
+  # assert mean.shape[1:].as_list() == [96, 96, num_channel], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
