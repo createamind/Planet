@@ -176,9 +176,9 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
 
 
 def carla(config, params):
-  action_repeat = params.get('action_repeat', 1)
+  action_repeat = params.get('action_repeat', 2)
   print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
-  max_length = 100 // action_repeat
+  max_length = 320 // action_repeat
   state_components = [
       'reward', 'state']
   env_ctor = functools.partial(
@@ -196,7 +196,7 @@ class DeepMindWrapper_carla(object):
     self._env = env
     self._render_size = render_size
     self._camera_id = camera_id
-    self.observation_space = gym.spaces.Dict({'state':gym.spaces.Box(low=-1,high=1,shape=(1,))})
+    self.observation_space = gym.spaces.Dict({'state':gym.spaces.Box(low=0,high=255,shape=(1,))})
 
   def __getattr__(self, name):
     return getattr(self._env, name)

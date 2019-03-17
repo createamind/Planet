@@ -92,7 +92,7 @@ class CarlaEnv(gym.Env):
         connect_fail_times = 0
         while self.world is None:
             try:
-                self.client = carla.Client("localhost", self.server_port)
+                self.client = carla.Client("192.168.100.37", self.server_port)
                 self.client.set_timeout(120.0)
                 self.world = self.client.get_world()
                 self.map = self.world.get_map()
