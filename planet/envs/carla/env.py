@@ -32,7 +32,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
-    "host": "192.168.100.37",
+    "host": "192.168.100.51",
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -309,7 +309,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.05)
+        time.sleep(0.049)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
