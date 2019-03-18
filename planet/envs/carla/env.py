@@ -32,7 +32,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
-    "host": "192.168.100.36",
+    "host": "192.168.100.37",
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -240,6 +240,7 @@ class CarlaEnv(gym.Env):
             return array
 
         if use == 'rgb':
+            # image.save_to_disk('_out/%08d' % image.frame_number)
             array = convert(cc)
             self._image_rgb1.append(array)
             if len(self._image_rgb1) > 32:
