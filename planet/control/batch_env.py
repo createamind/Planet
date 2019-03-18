@@ -108,7 +108,7 @@ class BatchEnv(object):
     if indices is None:
       indices = np.arange(len(self._envs))
     if self._blocking:
-      observs = [self._envs[index].reset() for index in indices]
+      observs = [self._envs[index].reset() for index in indices]  # TODO:fix bug
     else:
       observs = [self._envs[index].reset(blocking=False) for index in indices]
       observs = [observ() for observ in observs]

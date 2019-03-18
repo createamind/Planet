@@ -92,7 +92,7 @@ class ConcatObservation(object):
     return obs, reward, done, info
 
   def reset(self):
-    obs = self._env.reset()
+    obs = self._env.reset()  # TODO buggggggg
     obs = self._select_keys(obs)
     return obs
 
@@ -451,6 +451,8 @@ class ConvertTo32Bit(object):
 
   def reset(self):
     observ = self._env.reset()
+    # def map_(function, *structures, **kwargs):
+    # Apply a function to every element in a nested structure.
     observ = nested.map(self._convert_observ, observ)
     return observ
 
