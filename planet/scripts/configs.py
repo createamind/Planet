@@ -75,7 +75,7 @@ def _model_components(config, params):
   config.decoder = network.decoder
   config.heads = tools.AttrDict(image=config.decoder)
   size = params.get('model_size', 200)
-  state_size = params.get('state_size', 30)
+  state_size = params.get('state_size', 48)
   model = params.get('model', 'rssm')
   if model == 'ssm':
     config.cell = functools.partial(

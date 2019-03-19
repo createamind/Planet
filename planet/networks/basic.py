@@ -24,13 +24,13 @@ from planet import tools
 
 
 def feed_forward(
-    state, data_shape, num_layers=2, activation=None, cut_gradient=False):
+    state, data_shape, num_layers=3, activation=None, cut_gradient=False):
   """Create a model returning unnormalized MSE distribution."""
   hidden = state
   if cut_gradient:
     hidden = tf.stop_gradient(hidden)
   for _ in range(num_layers):
-    hidden = tf.layers.dense(hidden, 100, tf.nn.relu)
+    hidden = tf.layers.dense(hidden, 256, tf.nn.relu)
   mean = tf.layers.dense(hidden, int(np.prod(data_shape)), activation)
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tools.MSEDistribution(mean)
