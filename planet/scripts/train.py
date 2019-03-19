@@ -112,7 +112,7 @@ if __name__ == '__main__':
   boolean = lambda x: bool(['False', 'True'].index(x))
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--logdir', default='./log1')
+      '--logdir', default='./log_attention')
   parser.add_argument(
       '--num_runs', type=int, default=1)
   parser.add_argument(

@@ -30,6 +30,7 @@ ENV_CONFIG = {
     "image_mode": "encode",
     "localhost": "192.168.100.37",
     "early_stop": False,      # if we use planet this has to be False
+    "attention_mode": "soft"  # hard for dot product soft for adding noise
 }
 
 class CarlaEnv(gym.Env):
@@ -56,7 +57,7 @@ class CarlaEnv(gym.Env):
             0,
             255,
             shape=(config["y_res"], config["x_res"], framestack),
-            dtype=np.uint8)
+            dtype=np.float32)
         self.observation_space = image_space
         # environment config
         self._spec = lambda: None
@@ -214,8 +215,39 @@ class CarlaEnv(gym.Env):
         self._obs_collect.append(obs[:, :, 0:3])
         if len(self._obs_collect) > 32:
             self._obs_collect.pop(0)
+        mask = self._compute_mask()
+        if ENV_CONFIG["attention_mode"] == "soft":
+            obs = obs + mask
+        else:
+            obs = obs * mask
+        return np.clip(obs, 0, 255)
 
-        return obs
+    def _compute_distance_transform(self, d):
+        """compute the variance for attention mask when we adding noise """
+        d = 0.006 * d**2 - 0.63
+        # d = -24 + 2*d
+        return np.maximum(6*d, 0)
+
+
+    def _compute_mask(self, action=(1, 0, 0, 0)):
+        """"compute mask for attention"""
+        mu_1 = int(ENV_CONFIG["x_res"] * action[2] * 0.5)
+        mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
+        d_list = []
+        point_list = self._generate_point_list()
+        var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
+        for p in point_list:
+            d = np.sqrt((mu_1 - p[0]) ** 2 + (mu_2 - p[1]) ** 2)
+            if ENV_CONFIG["attention_mode"] == "soft":
+                p_mask = float(self._compute_distance_transform(d) * np.random.randn(1))
+                # p_mask = float(2 * d * np.random.randn(1))
+
+            else:
+                p_mask = 1200 * var.pdf([d, 0])
+            d_list.append(p_mask)
+        mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
+        return mask[:, :, np.newaxis]
+
 
     @staticmethod
     def _parse_image1(weak_self, image, cc, use):
@@ -229,6 +261,7 @@ class CarlaEnv(gym.Env):
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (image.height, image.width, 4))
             array = array[:, :, -2:-5:-1]
+            array = array.astype(np.float32)
             return array
 
         if use == 'rgb':
@@ -248,6 +281,7 @@ class CarlaEnv(gym.Env):
             array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
             array = np.reshape(array, (image.height, image.width, 4))
             array = array[:, :, -2:-5:-1]
+            array = array.astype(np.float32)
             return array
 
         if use == 'rgb':
@@ -369,30 +403,38 @@ class CarlaEnv(gym.Env):
         else:
             obs = self._image_rgb1[-1]
 
-        # project [-1 1] to [-48 48]
-        mu_1 = int(48 * action[2])
-        mu_2 = int(48 * action[3])
-        d_list = []
-        point_list = self._generate_point_list()
-        var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
-        d_c = []
-        for p in point_list:
-            d = np.sqrt((mu_1 - p[0])**2 + (mu_2 - p[1])**2)
-            d_c.append(d)
-            p_mask = 1200 * var.pdf([d, 0])
-            d_list.append(p_mask)
 
-        mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
-        obs = obs * mask[:, :, np.newaxis]
 
-        self._obs_collect.append(obs[:, :, 0:3])
+        mask = self._compute_mask(action)
+        if ENV_CONFIG["attention_mode"] == "soft":
+            obs = obs + mask
+        else:
+            obs = obs * mask
+
+       #  # project [-1 1] to [-48 48]
+       #  mu_1 = int(48 * action[2])
+       #  mu_2 = int(48 * action[3])
+       #  d_list = []
+       #  point_list = self._generate_point_list()
+       #  var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
+       # #  d_c = []
+       #  for p in point_list:
+       #      d = np.sqrt((mu_1 - p[0])**2 + (mu_2 - p[1])**2)
+       #     #  d_c.append(d)
+       #      p_mask = 1200 * var.pdf([d, 0])
+       #      d_list.append(p_mask)
+       #
+       #  mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
+       #  obs = obs * mask[:, :, np.newaxis]
+
+        self._obs_collect.append(np.clip(obs[:, :, 0:3], 0, 255))  # clip in case we want render
         if len(self._obs_collect) > 32:
             self._obs_collect.pop(0)
 
-        return obs, reward, done, self._history_info[-1]
+        return np.clip(obs[:, :, 0:3], 0, 255), reward, done, self._history_info[-1]
 
     def render(self):
-        import pygame
+
         display = pygame.display.set_mode(
             (ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
