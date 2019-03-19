@@ -12,13 +12,12 @@ import time
 import subprocess
 from carla import ColorConverter as cc
 import math
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
-from scipy.stats import multivariate_normal
-
 # Default environment configuration
+
 """ default is rgb 
     stack for gray depth segmentation stack together
     encode for encode measurement in forth channel """
@@ -28,7 +27,7 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
-    "localhost": "192.168.100.37",
+    "localhost": "192.168.100.51", 
     "early_stop": False,      # if we use planet this has to be False
 }
 
@@ -42,11 +41,11 @@ class CarlaEnv(gym.Env):
             "turn_left": 4,
         }
 
-        # change action space
-        self.action_space = Box(-1.0, 1.0, shape=(4, ), dtype=np.float32)
+
+        self.action_space = Box(-1.0, 1.0, shape=(2, ), dtype=np.float32)
 
         if ENV_CONFIG["image_mode"] == "encode":
-            framestack = 7
+            framestack = 4
         elif ENV_CONFIG["image_mode"] == "stack":
             framestack = 3
         else:
@@ -55,7 +54,7 @@ class CarlaEnv(gym.Env):
         image_space = Box(
             0,
             255,
-            shape=(config["y_res"], config["x_res"], framestack),
+            shape=(config["y_res"], config["x_res"], 7),
             dtype=np.uint8)
         self.observation_space = image_space
         # environment config
@@ -82,7 +81,6 @@ class CarlaEnv(gym.Env):
         self._image_rgb1 = []          # save a list of rgb image
         self._image_rgb2 = []          # save a list of rgb image
         self._history_waypoint = []
-        self._obs_collect = []
         # initialize our world
         self.server_port = ENV_CONFIG['port']
         self.world = None
@@ -150,6 +148,15 @@ class CarlaEnv(gym.Env):
             self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle)
             self.actor_list.append(self.camera_rgb1)
 
+            # setup rgb camera2
+#            camera_transform = carla.Transform(carla.Location(x=1, y=0.5, z=2))
+ #           camera_rgb2 = bp_library.find('sensor.camera.rgb')
+  #          camera_rgb2.set_attribute('fov', '120')
+   #         camera_rgb2.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+    #        camera_rgb2.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+     #       self.camera_rgb2 = world.try_spawn_actor(camera_rgb2, camera_transform, attach_to=self.vehicle)
+      #      self.actor_list.append(self.camera_rgb2)
+
             # add collision sensors
             bp = bp_library.find('sensor.other.collision')
             self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
@@ -174,6 +181,8 @@ class CarlaEnv(gym.Env):
         # set rgb camera sensor
         self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image,
                                                                cc.Raw, 'rgb'))
+       # self.camera_rgb2.listen(lambda image: self._parse_image2(weak_self, image,
+        #                                                       cc.Raw, 'rgb'))
         while len(self._image_rgb1)<4:
             print("resetting rgb")
             time.sleep(0.001)
@@ -211,9 +220,6 @@ class CarlaEnv(gym.Env):
         }
 
         self._history_info.append(info)
-        self._obs_collect.append(obs[:, :, 0:3])
-        if len(self._obs_collect) > 32:
-            self._obs_collect.pop(0)
 
         return obs
 
@@ -278,18 +284,6 @@ class CarlaEnv(gym.Env):
         self._history_invasion.append(text[0][1])
         if len(self._history_invasion) > 32:
              self._history_invasion.pop(0)
-
-    def _generate_point_list(self):
-        """
-        generate a list of attention point represent the index for every pixel
-        :return: Cartesian coordinates for pixels
-        """
-        r = int(ENV_CONFIG["x_res"]/2)
-        point_list = []
-        for i in range(r, -r, -1):
-            for j in range(-r, r, 1):
-                point_list.append((j, i))
-        return point_list
 
     def step(self, action):
 
@@ -369,26 +363,6 @@ class CarlaEnv(gym.Env):
         else:
             obs = self._image_rgb1[-1]
 
-        # project [-1 1] to [-48 48]
-        mu_1 = int(48 * action[2])
-        mu_2 = int(48 * action[3])
-        d_list = []
-        point_list = self._generate_point_list()
-        var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
-        d_c = []
-        for p in point_list:
-            d = np.sqrt((mu_1 - p[0])**2 + (mu_2 - p[1])**2)
-            d_c.append(d)
-            p_mask = 1200 * var.pdf([d, 0])
-            d_list.append(p_mask)
-
-        mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
-        obs = obs * mask[:, :, np.newaxis]
-
-        self._obs_collect.append(obs[:, :, 0:3])
-        if len(self._obs_collect) > 32:
-            self._obs_collect.pop(0)
-
         return obs, reward, done, self._history_info[-1]
 
     def render(self):
@@ -396,8 +370,7 @@ class CarlaEnv(gym.Env):
         display = pygame.display.set_mode(
             (ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
-        # surface = pygame.surfarray.make_surface(env._image_rgb1[-1].swapaxes(0, 1))
-        surface = pygame.surfarray.make_surface(env._obs_collect[-1].swapaxes(0, 1))
+        surface = pygame.surfarray.make_surface(env._image_rgb1[-1].swapaxes(0, 1))
         display.blit(surface, (0, 0))
         time.sleep(0.01)
         pygame.display.flip()
@@ -438,11 +411,10 @@ if __name__ == '__main__':
     i = 0
     start = time.time()
     R = 0
-    while i < 200:
-        env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0])
+    while i<200:
+    #    env.render()
+        obs, reward, done, info = env.step([1, 0])
         R += reward
-        print(R)
         i += 1
     print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
     print("{:.2f} fps".format(float(i / (time.time() - start))))
