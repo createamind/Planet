@@ -30,7 +30,7 @@ ENV_CONFIG = {
     "image_mode": "encode",
     "localhost": "192.168.100.37",
     "early_stop": False,      # if we use planet this has to be False
-    "attention_mode": "soft"  # hard for dot product soft for adding noise
+    "attention_mode": "hard"  # hard for dot product soft for adding noise
 }
 
 class CarlaEnv(gym.Env):
@@ -246,7 +246,7 @@ class CarlaEnv(gym.Env):
                 p_mask = 1200 * var.pdf([d, 0])
             d_list.append(p_mask)
         mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
-        return mask[:, :, np.newaxis]
+        return mask.reshape([ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]], 1)
 
 
     @staticmethod
@@ -431,7 +431,7 @@ class CarlaEnv(gym.Env):
         if len(self._obs_collect) > 32:
             self._obs_collect.pop(0)
 
-        return np.clip(obs[:, :, 0:3], 0, 255), reward, done, self._history_info[-1]
+        return np.clip(obs, 0, 255), reward, done, self._history_info[-1]
 
     def render(self):
 
@@ -480,7 +480,9 @@ if __name__ == '__main__':
     i = 0
     start = time.time()
     R = 0
-    while i < 200:
+    for _ in range(5):
+      obs = env.reset()
+      while i < 80:
         env.render()
         obs, reward, done, info = env.step([1, 0, 0, 0])
         R += reward
