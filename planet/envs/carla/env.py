@@ -33,8 +33,8 @@ ENV_CONFIG = {
     "localhost": "192.168.100.37",
     "early_stop": False,       # if we use planet this has to be False
     "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it
-    "action_dim": 4,           # 4 for one point attention, 5 for control view field
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 5,           # 4 for one point attention, 5 for control view field
 }
 
 class CarlaEnv(gym.Env):
@@ -105,8 +105,6 @@ class CarlaEnv(gym.Env):
             if connect_fail_times > 10:
                 break
 
-
-
     def restart(self):
         """restart world and add sensors"""
         world = self.world
@@ -114,13 +112,12 @@ class CarlaEnv(gym.Env):
         self.actor_list = []          # save actor list for destroying them after finish
         self.vehicle = None
         self.collision_sensor = None
-        self.camera_rgb = None
         self.invasion_sensor = None
         # states and data
         self._history_info = []       # info history
         self._history_collision = []  # collision history
         self._history_invasion = []   # invasion history
-        self._image_rgb1 = []          # save a list of rgb image
+        self._image_rgb1 = []         # save a list of rgb image
         self._image_rgb2 = []
         self._history_waypoint = []
 
@@ -219,9 +216,9 @@ class CarlaEnv(gym.Env):
         mask = self._compute_mask()
         # define how many channel we want play with
         if ENV_CONFIG["attention_mode"] == "soft":
-            obs = obs[:, :, 0:ENV_CONFIG["attention_channel"]] + mask
+            obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] + mask
         else:
-            obs = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
+            obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
         return np.clip(obs, 0, 255)
 
     @staticmethod
@@ -232,22 +229,26 @@ class CarlaEnv(gym.Env):
         # d = -24 + 2*d
         return np.maximum(6*d, 0)
 
-    def _compute_mask(self, action=(1, 0, 0, 0)):
+    def _compute_mask(self, action=np.zeros(ENV_CONFIG["action_dim"])):
         """"compute mask for attention"""
         mu_1 = int(ENV_CONFIG["x_res"] * action[2] * 0.5)
         mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
         d_list = []
         point_list = self._generate_point_list()
         # TODO test different covariance
-        var = multivariate_normal(mean=[0, 0], cov=[[195, 0], [0, 195]])
+        if ENV_CONFIG["action_dim"] == 4:
+            var = multivariate_normal(mean=[0, 0], cov=[[195, 0], [0, 195]])
+        elif ENV_CONFIG["action_dim"] == 5:  # changing the view field by changing covariance
+            var = multivariate_normal(mean=[0, 0], cov=[[400*(action[4]+1), 0], [0, 400*(action[4]+1)]])
+
+        max_p = var.pdf([0, 0])
         for p in point_list:
             d = np.sqrt((mu_1 - p[0]) ** 2 + (mu_2 - p[1]) ** 2)
             if ENV_CONFIG["attention_mode"] == "soft":
                 p_mask = float(self._compute_distance_transform(d) * np.random.randn(1))
-                # p_mask = float(2 * d * np.random.randn(1))
             elif ENV_CONFIG["attention_mode"] == "hard":
-                p_mask = 1700 * var.pdf([d, 0])
-            else:
+                p_mask = (1.2 * (1/max_p)) * var.pdf([d, 0])
+            else:  # if we want use raw rgb
                 p_mask = 1
             d_list.append(p_mask)
         mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
@@ -359,7 +360,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.047)
+        # time.sleep(0.047)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -373,7 +374,7 @@ class CarlaEnv(gym.Env):
         command = self.planner()
        
         distance_after_act = ((self._history_waypoint[-2].transform.location.x - self.vehicle.get_location().x)**2 + 
-                   (self._history_waypoint[-2].transform.location.y - self.vehicle.get_location().y)**2)**0.5
+                              (self._history_waypoint[-2].transform.location.y - self.vehicle.get_location().y)**2)**0.5
         info = {"speed": math.sqrt(v.x**2 + v.y**2 + v.z**2),  # m/s
                 "acceleration": math.sqrt(acceleration.x**2 + acceleration.y**2 + acceleration.z**2),
                 "location_x": t.location.x,
@@ -411,25 +412,9 @@ class CarlaEnv(gym.Env):
 
         mask = self._compute_mask(action)
         if ENV_CONFIG["attention_mode"] == "soft":
-            obs = obs + mask
+            obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] + mask
         else:
-            obs = obs * mask
-
-       #  # project [-1 1] to [-48 48]
-       #  mu_1 = int(48 * action[2])
-       #  mu_2 = int(48 * action[3])
-       #  d_list = []
-       #  point_list = self._generate_point_list()
-       #  var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
-       # #  d_c = []
-       #  for p in point_list:
-       #      d = np.sqrt((mu_1 - p[0])**2 + (mu_2 - p[1])**2)
-       #     #  d_c.append(d)
-       #      p_mask = 1200 * var.pdf([d, 0])
-       #      d_list.append(p_mask)
-       #
-       #  mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
-       #  obs = obs * mask[:, :, np.newaxis]
+            obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
 
         self._obs_collect.append(np.clip(obs[:, :, 0:3], 0, 255))  # clip in case we want render
         if len(self._obs_collect) > 32:
@@ -477,21 +462,18 @@ class CarlaEnv(gym.Env):
 
 if __name__ == '__main__':
     env = CarlaEnv()
-
     obs = env.reset()
     print(obs.shape)
     done = False
     i = 0
     start = time.time()
     R = 0
-    for _ in range(5):
-      obs = env.reset()
-      while i < 80:
+    while i < 50:
         env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0])
+        obs, reward, done, info = env.step([1, 0, 0, 0, 1])
         R += reward
         print(R)
         i += 1
-    print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
+    # print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
     print("{:.2f} fps".format(float(i / (time.time() - start))))
     print(R)
