@@ -31,9 +31,9 @@ ENV_CONFIG = {
     "port": 2000,
     "image_mode": "encode",
     "localhost": "192.168.100.37",
-    "early_stop": False,       # if we use planet this has to be False
-    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "early_stop": True,       # if we use planet this has to be False
+    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 6,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
     "action_dim": 5,           # 4 for one point attention, 5 for control view field
 }
 
@@ -88,6 +88,7 @@ class CarlaEnv(gym.Env):
         self._image_rgb2 = []          # save a list of rgb image
         self._history_waypoint = []
         self._obs_collect = []
+        # self._d_collect = []
         # initialize our world
         self.server_port = ENV_CONFIG['port']
         self.world = None
@@ -221,13 +222,42 @@ class CarlaEnv(gym.Env):
             obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
         return np.clip(obs, 0, 255)
 
+    @ staticmethod
+    def _generate_point_list():
+        """
+        generate the Cartesian coordinates for every pixel in the picture, because attention point is represented in
+        Cartesian coordinates(e.g. (-48, -48) (0, 0) (48, 48)) but the position of pixel is represented by index(e.g.
+        [95, 0] [47, 47] [0 95])
+        :return: Cartesian coordinates for pixels
+        """
+        r = int(ENV_CONFIG["x_res"]/2)
+        point_list = []
+        for i in range(r, -r, -1):
+            for j in range(-r, r, 1):
+                point_list.append((j, i))
+        return point_list
+
     @staticmethod
-    def _compute_distance_transform(d):
+    def _compute_distance_transform(d, action=np.zeros(ENV_CONFIG["action_dim"])):
         """compute the variance for attention mask when we adding noise
         if we specify attention mode to soft we will use this function """
-        d = 0.006 * d**2 - 0.63
+        if ENV_CONFIG["action_dim"] == 5:
+            # in care our poor agent see nothing we set threshold equal to 5
+            # in other word if action[4] = 0 then action[4] will be set to 5
+            # action[4] belong to range(-1, 1) we project it to [0, 70]
+            r = 35*(1+action[4]) if 35*(1+action[4]) > 5 else 5
+        else:
+            r = 100000
+        if ENV_CONFIG["attention_mode"] == "soft":
+            # d is the threshold of distance between attention point
+            # if the distance is greater then d we add noise on image
+            # the strength of noise is linear to distance
+            d = 0 if d < r else 2 * d
+        elif ENV_CONFIG["attention_mode"] == "hard":
+            # it behave like mask(i.e. 0 for totally dark)
+            d = 1 if d < r else (r/d)**2.5
         # d = -24 + 2*d
-        return np.maximum(6*d, 0)
+        return d
 
     def _compute_mask(self, action=np.zeros(ENV_CONFIG["action_dim"])):
         """"compute mask for attention"""
@@ -235,19 +265,13 @@ class CarlaEnv(gym.Env):
         mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
         d_list = []
         point_list = self._generate_point_list()
-        # TODO test different covariance
-        if ENV_CONFIG["action_dim"] == 4:
-            var = multivariate_normal(mean=[0, 0], cov=[[195, 0], [0, 195]])
-        elif ENV_CONFIG["action_dim"] == 5:  # changing the view field by changing covariance
-            var = multivariate_normal(mean=[0, 0], cov=[[400*(action[4]+1), 0], [0, 400*(action[4]+1)]])
-
-        max_p = var.pdf([0, 0])
         for p in point_list:
             d = np.sqrt((mu_1 - p[0]) ** 2 + (mu_2 - p[1]) ** 2)
             if ENV_CONFIG["attention_mode"] == "soft":
-                p_mask = float(self._compute_distance_transform(d) * np.random.randn(1))
+                # self._d_collect.append(d)
+                p_mask = float(self._compute_distance_transform(d, action) * np.random.randn(1))
             elif ENV_CONFIG["attention_mode"] == "hard":
-                p_mask = (1.2 * (1/max_p)) * var.pdf([d, 0])
+                p_mask = float(self._compute_distance_transform(d, action))
             else:  # if we want use raw rgb
                 p_mask = 1
             d_list.append(p_mask)
@@ -318,18 +342,6 @@ class CarlaEnv(gym.Env):
         if len(self._history_invasion) > 32:
              self._history_invasion.pop(0)
 
-    def _generate_point_list(self):
-        """
-        generate a list of attention point represent the index for every pixel
-        :return: Cartesian coordinates for pixels
-        """
-        r = int(ENV_CONFIG["x_res"]/2)
-        point_list = []
-        for i in range(r, -r, -1):
-            for j in range(-r, r, 1):
-                point_list.append((j, i))
-        return point_list
-
     def step(self, action):
 
         def compute_reward(info, prev_info):
@@ -396,19 +408,17 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0:
+            if len(self._history_collision) > 5:
                 # print("collisin length", len(self._history_collision))
                 done = True
-            elif reward < -100:
-                done = True
+            # elif reward < -100:
+            #     done = True
 
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
             obs = np.concatenate([self._image_rgb1[-1], self._image_rgb1[-2],
                                   self.encode_measurement(info)], axis=2)
         else:
             obs = self._image_rgb1[-1]
-
-
 
         mask = self._compute_mask(action)
         if ENV_CONFIG["attention_mode"] == "soft":
@@ -468,12 +478,13 @@ if __name__ == '__main__':
     i = 0
     start = time.time()
     R = 0
-    while i < 50:
+    while not done:
         env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0, 1])
+        obs, reward, done, info = env.step([1, 0, 0, 0, 0])
         R += reward
         print(R)
         i += 1
     # print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
+    # print("++++++++++++++++++++=", min(env._d_collect))
     print("{:.2f} fps".format(float(i / (time.time() - start))))
     print(R)
