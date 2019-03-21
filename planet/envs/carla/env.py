@@ -23,14 +23,18 @@ from scipy.stats import multivariate_normal
     stack for gray depth segmentation stack together
     encode for encode measurement in forth channel """
 
+
+# 2000 soft 3000 hard
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
     "localhost": "192.168.100.37",
-    "early_stop": False,      # if we use planet this has to be False
-    "attention_mode": "hard"  # hard for dot product soft for adding noise
+    "early_stop": False,       # if we use planet this has to be False
+    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it
+    "action_dim": 4,           # 4 for one point attention, 5 for control view field
 }
 
 class CarlaEnv(gym.Env):
@@ -44,7 +48,7 @@ class CarlaEnv(gym.Env):
         }
 
         # change action space
-        self.action_space = Box(-1.0, 1.0, shape=(4, ), dtype=np.float32)
+        self.action_space = Box(-1.0, 1.0, shape=(ENV_CONFIG["action_dim"], ), dtype=np.float32)
 
         if ENV_CONFIG["image_mode"] == "encode":
             framestack = 7
@@ -163,8 +167,6 @@ class CarlaEnv(gym.Env):
         except Exception as e:
             print("spawn fail, sad news", e)
 
-
-
     def reset(self):
         self.restart()
         weak_self = weakref.ref(self)
@@ -173,9 +175,8 @@ class CarlaEnv(gym.Env):
         # set collision sensor
         self.collision_sensor.listen(lambda event: self._parse_collision(weak_self, event))
         # set rgb camera sensor
-        self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image,
-                                                               cc.Raw, 'rgb'))
-        while len(self._image_rgb1)<4:
+        self.camera_rgb1.listen(lambda image: self._parse_image1(weak_self, image, cc.Raw, 'rgb'))
+        while len(self._image_rgb1) < 4:
             print("resetting rgb")
             time.sleep(0.001)
         if ENV_CONFIG["image_mode"] == "encode":   # stack gray depth segmentation
@@ -216,18 +217,20 @@ class CarlaEnv(gym.Env):
         if len(self._obs_collect) > 32:
             self._obs_collect.pop(0)
         mask = self._compute_mask()
+        # define how many channel we want play with
         if ENV_CONFIG["attention_mode"] == "soft":
-            obs = obs + mask
+            obs = obs[:, :, 0:ENV_CONFIG["attention_channel"]] + mask
         else:
-            obs = obs * mask
+            obs = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
         return np.clip(obs, 0, 255)
 
-    def _compute_distance_transform(self, d):
-        """compute the variance for attention mask when we adding noise """
+    @staticmethod
+    def _compute_distance_transform(d):
+        """compute the variance for attention mask when we adding noise
+        if we specify attention mode to soft we will use this function """
         d = 0.006 * d**2 - 0.63
         # d = -24 + 2*d
         return np.maximum(6*d, 0)
-
 
     def _compute_mask(self, action=(1, 0, 0, 0)):
         """"compute mask for attention"""
@@ -235,19 +238,20 @@ class CarlaEnv(gym.Env):
         mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
         d_list = []
         point_list = self._generate_point_list()
-        var = multivariate_normal(mean=[0, 0], cov=[[185, 0], [0, 185]])
+        # TODO test different covariance
+        var = multivariate_normal(mean=[0, 0], cov=[[195, 0], [0, 195]])
         for p in point_list:
             d = np.sqrt((mu_1 - p[0]) ** 2 + (mu_2 - p[1]) ** 2)
             if ENV_CONFIG["attention_mode"] == "soft":
                 p_mask = float(self._compute_distance_transform(d) * np.random.randn(1))
                 # p_mask = float(2 * d * np.random.randn(1))
-
+            elif ENV_CONFIG["attention_mode"] == "hard":
+                p_mask = 1700 * var.pdf([d, 0])
             else:
-                p_mask = 1200 * var.pdf([d, 0])
+                p_mask = 1
             d_list.append(p_mask)
         mask = np.reshape(d_list, [ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]])
-        return mask.reshape([ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]], 1)
-
+        return mask[:, :, np.newaxis]
 
     @staticmethod
     def _parse_image1(weak_self, image, cc, use):
@@ -355,7 +359,7 @@ class CarlaEnv(gym.Env):
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # get image
-        time.sleep(0.05)
+        time.sleep(0.047)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
