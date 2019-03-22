@@ -155,72 +155,31 @@ class DenseNet():
 
 
 
-def encoder(obs):
-#   """Extract deterministic features from an observation."""
-   kwargs = dict(strides=2, activation=tf.nn.relu)
-#   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
-   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-   hidden = tf.layers.conv2d(hidden, 32, 8, **kwargs)
-   hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
-   hidden = tf.layers.conv2d(hidden, 72, 5, **kwargs)
-   hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
-   hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
-   hidden = tf.layers.flatten(hidden)
-   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
-       np.prod(hidden.shape[1:].as_list())])
-   return hidden
-
-
-def decoder(state, data_shape):
-  """Compute the data distribution of an observation from its state."""
-  kwargs = dict(strides=2, activation=tf.nn.relu)
-  hidden = tf.layers.dense(state, 1024, None)
-  hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
-  hidden = tf.layers.conv2d_transpose(hidden, 128, 3, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 48, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
-  mean = hidden
-  assert mean.shape[1:].as_list() == [96, 96, num_channel], mean.shape
-  mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
-  dist = tools.MSEDistribution(mean)
-  dist = tfd.Independent(dist, len(data_shape))
-  return dist
 # def encoder(obs):
-#    """Extract deterministic features from an observation."""
+# #   """Extract deterministic features from an observation."""
 #    kwargs = dict(strides=2, activation=tf.nn.relu)
-#    # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
+# #   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
 #    hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-#    hidden = tf.layers.conv2d(hidden, 32, 3, strides=1, activation=tf.nn.relu)
-#    hidden = tf.layers.conv2d(hidden, 48, 3, **kwargs)
-#    hidden = tf.layers.conv2d(hidden, 64, 3, **kwargs)
-#    hidden = tf.layers.conv2d(hidden, 72, 3, **kwargs)
-#    hidden = tf.layers.conv2d(hidden, 128, 3, **kwargs)
-#    hidden = tf.layers.conv2d(hidden, 1024, 4, strides=1)
+#    hidden = tf.layers.conv2d(hidden, 32, 8, **kwargs)
+#    hidden = tf.layers.conv2d(hidden, 64, 5, **kwargs)
+#    hidden = tf.layers.conv2d(hidden, 72, 5, **kwargs)
+#    hidden = tf.layers.conv2d(hidden, 128, 5, **kwargs)
+#    hidden = tf.layers.conv2d(hidden, 1024, 3, strides=1)
 #    hidden = tf.layers.flatten(hidden)
-#
 #    assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
 #    hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
 #        np.prod(hidden.shape[1:].as_list())])
-#    return hidden                                                                # shape(50,50,1024)
+#    return hidden
 #
-# #def encoder(obs):
-# #  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
-# #  hidden = DenseNet(x=hidden, filters=growth_k).model
-# #  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
-# #  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
-# #  return hidden
 #
 # def decoder(state, data_shape):
 #   """Compute the data distribution of an observation from its state."""
 #   kwargs = dict(strides=2, activation=tf.nn.relu)
 #   hidden = tf.layers.dense(state, 1024, None)
 #   hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
-#   hidden = tf.layers.conv2d_transpose(hidden, 172, 3, **kwargs)
-#   hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
-#   hidden = tf.layers.conv2d_transpose(hidden, 64, 6, **kwargs)
+#   hidden = tf.layers.conv2d_transpose(hidden, 128, 3, **kwargs)
+#   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
+#   hidden = tf.layers.conv2d_transpose(hidden, 48, 6, **kwargs)
 #   hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
 #   hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
 #   mean = hidden
@@ -229,3 +188,45 @@ def decoder(state, data_shape):
 #   dist = tools.MSEDistribution(mean)
 #   dist = tfd.Independent(dist, len(data_shape))
 #   return dist
+
+def encoder(obs):
+   """Extract deterministic features from an observation."""
+   kwargs = dict(strides=2, activation=tf.nn.relu)
+   # e.g. (50,50,96,96,3) reshape to (2500,96,96,3)
+   hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+   hidden = tf.layers.conv2d(hidden, 48, 3, strides=1, activation=tf.nn.relu)
+   hidden = tf.layers.conv2d(hidden, 56, 3, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 64, 3, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 72, 3, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 128, 3, **kwargs)
+   hidden = tf.layers.conv2d(hidden, 1024, 4, strides=1)
+   hidden = tf.layers.flatten(hidden)
+
+   assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
+       np.prod(hidden.shape[1:].as_list())])
+   return hidden                                                                # shape(50,50,1024)
+
+#def encoder(obs):
+#  hidden = tf.reshape(obs['image'], [-1] + obs['image'].shape[2:].as_list())
+#  hidden = DenseNet(x=hidden, filters=growth_k).model
+#  assert hidden.shape[1:].as_list() == [1024], hidden.shape.as_list()
+#  hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [np.prod(hidden.shape[1:].as_list())])
+#  return hidden
+
+def decoder(state, data_shape):
+  """Compute the data distribution of an observation from its state."""
+  kwargs = dict(strides=2, activation=tf.nn.relu)
+  hidden = tf.layers.dense(state, 1024, None)
+  hidden = tf.reshape(hidden, [-1, 1, 1, hidden.shape[-1].value])
+  hidden = tf.layers.conv2d_transpose(hidden, 164, 3, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 64, 6, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 32, 5, **kwargs)
+  hidden = tf.layers.conv2d_transpose(hidden, 7, 4, strides=2)
+  mean = hidden
+  assert mean.shape[1:].as_list() == [96, 96, num_channel], mean.shape
+  mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
+  dist = tools.MSEDistribution(mean)
+  dist = tfd.Independent(dist, len(data_shape))
+  return dist

@@ -58,7 +58,7 @@ def _data_processing(config, params):
   config.max_episodes = None
   config.scan_episodes_every = params.get('scan_episodes_every', 10)
   config.data_loader = params.get('data_loader', 'scan')
-  config.batch_shape = params.get('batch_shape', (30, 50))  # training batch size, horizon
+  config.batch_shape = params.get('batch_shape', (50, 50))  # training batch size, horizon
   config.num_chunks = params.get('num_chunks', 1)
   image_bits = params.get('image_bits', 8)
   config.preprocess_fn = functools.partial(
@@ -75,6 +75,7 @@ def _model_components(config, params):
   config.decoder = network.decoder
   config.heads = tools.AttrDict(image=config.decoder)
   size = params.get('model_size', 200)
+  # state size original is 30
   state_size = params.get('state_size', 48)
   model = params.get('model', 'rssm')
   if model == 'ssm':

@@ -30,11 +30,11 @@ ENV_CONFIG = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
-    "localhost": "192.168.100.37",
-    "early_stop": True,       # if we use planet this has to be False
-    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
+    "localhost": "192.168.100.18",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 6,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 5,           # 4 for one point attention, 5 for control view field
+    "action_dim": 2,           # 4 for one point attention, 5 for control view field
 }
 
 class CarlaEnv(gym.Env):
@@ -247,7 +247,7 @@ class CarlaEnv(gym.Env):
             # action[4] belong to range(-1, 1) we project it to [0, 70]
             r = 35*(1+action[4]) if 35*(1+action[4]) > 5 else 5
         else:
-            r = 100000
+            r = 25
         if ENV_CONFIG["attention_mode"] == "soft":
             # d is the threshold of distance between attention point
             # if the distance is greater then d we add noise on image
@@ -261,8 +261,12 @@ class CarlaEnv(gym.Env):
 
     def _compute_mask(self, action=np.zeros(ENV_CONFIG["action_dim"])):
         """"compute mask for attention"""
-        mu_1 = int(ENV_CONFIG["x_res"] * action[2] * 0.5)
-        mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
+        if ENV_CONFIG["action_dim"] == 4 or ENV_CONFIG["action_dim"] == 5:
+            mu_1 = int(ENV_CONFIG["x_res"] * action[2] * 0.5)
+            mu_2 = int(ENV_CONFIG["y_res"] * action[3] * 0.5)
+        elif ENV_CONFIG["action_dim"] == 2:
+            mu_1 = 0
+            mu_2 = 0
         d_list = []
         point_list = self._generate_point_list()
         for p in point_list:
@@ -346,10 +350,10 @@ class CarlaEnv(gym.Env):
 
         def compute_reward(info, prev_info):
             reward = 0.0
-            reward += np.clip(info["speed"], 0, 15)/4
+            reward += np.clip(info["speed"], 0, 15)/3
             reward += info['distance']
             if info["collision"] == 1:
-                reward -= 30
+                reward -= 70
             elif 2 <= info["collision"] < 5:
                 reward -= info['speed'] * 2
             elif info["collision"] > 5:
@@ -371,8 +375,9 @@ class CarlaEnv(gym.Env):
       
         # command = self.planner()
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
-        # get image
-        # time.sleep(0.047)
+        # sleep a little waiting for the responding from simulator
+        if ENV_CONFIG["attention_mode"] == "None" or ENV_CONFIG["attention_mode"] == "hard":
+            time.sleep(0.05)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -408,7 +413,7 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 5:
+            if len(self._history_collision) > 1:
                 # print("collisin length", len(self._history_collision))
                 done = True
             # elif reward < -100:
@@ -480,7 +485,7 @@ if __name__ == '__main__':
     R = 0
     while not done:
         env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0, 0])
+        obs, reward, done, info = env.step([1, 0, 0, 0, -1])
         R += reward
         print(R)
         i += 1

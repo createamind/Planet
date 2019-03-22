@@ -161,10 +161,10 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
   def env_ctor():
     env = gym.make(env_name)     # 'Pendulum-v0'
     env = env.env                # 'remove TimeLimit wrapper
-    env = DeepMindWrapper_gym(env, (64, 64))
+    env = DeepMindWrapper_gym(env, (96, 96))
     env = control.wrappers.ActionRepeat(env, action_repeat)
     env = control.wrappers.LimitDuration(env, max_length)
-    env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
+    env = control.wrappers.PixelObservations(env, (96, 96), np.uint8, 'image')
     env = control.wrappers.ConvertTo32Bit(env)
     return env
   env = control.wrappers.ExternalProcess(env_ctor)
@@ -178,7 +178,7 @@ def _dm_control_env_gym(action_repeat, max_length, env_name):
 def carla(config, params):
   action_repeat = params.get('action_repeat', 2)
   print("+++++++++++++++++++++++++++++++++++++++++++++++++++")
-  max_length = 120 // action_repeat
+  max_length = 1000 // action_repeat
   state_components = [
       'reward', 'state']
   env_ctor = functools.partial(

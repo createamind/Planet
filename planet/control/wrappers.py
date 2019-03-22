@@ -245,8 +245,9 @@ class DeepMindWrapper(object):
 
   def reset(self):
     time_step = self._env.reset()
-    return dict(time_step.observation)  # return: {'position': array([-0.10657491,  0.03791366, -0.01320079,  0.02708236, -0.05382936, 0.00701578, -0.07508983, -0.06376804]),
-                                        #          'velocity': array([-0.00637606, -0.00594656,  0.00852484, -0.00541404,  0.00263544, -0.01481148, -0.00058044, -0.03207024, -0.03622259])}
+    return dict(time_step.observation)
+    # return: {'position': array([-0.10657491,  0.03791366, -0.01320079,  0.02708236, -0.05382936, 0.00701578, -0.07508983, -0.06376804]),
+    #          'velocity': array([-0.00637606, -0.00594656,  0.00852484, -0.00541404,  0.00263544, -0.01481148, -0.00058044, -0.03207024, -0.03622259])}
   def render(self, *args, **kwargs):
     if kwargs.get('mode', 'rgb_array') != 'rgb_array':
       raise ValueError("Only render mode 'rgb_array' is supported.")
@@ -272,9 +273,8 @@ class LimitDuration(object):
       raise RuntimeError('Must reset environment.')
     observ, reward, done, info = self._env.step(action)
     self.step_error = False
-    #print(done)
     self._step += 1
-    if self._step >= self._duration:
+    if (self._step > 55 and done) or self._step >= self._duration:  # e.g. 100~1000
       done = True
       self._step = None
     else:
