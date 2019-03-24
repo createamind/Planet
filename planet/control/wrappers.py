@@ -31,6 +31,7 @@ import gym.spaces
 import numpy as np
 import skimage.transform
 import tensorflow as tf
+import time
 
 from planet.tools import nested
 
@@ -274,12 +275,12 @@ class LimitDuration(object):
     observ, reward, done, info = self._env.step(action)
     self.step_error = False
     self._step += 1
+    # print("GLOBAL_STEP", self._step)
+    # early stop
     if (self._step > 55 and done) or self._step >= self._duration:  # e.g. 100~1000
       done = True
       self._step = None
-    else:
-      # assert not done
-      if done:
+    elif self._step < 55 and done:
         print('step error... please check the env.')
         self.step_error = True
     return observ, reward, done, info
@@ -598,6 +599,25 @@ class ExternalProcess(object):
       Payload object of the message.
     """
     message, payload = self._conn.recv()
+    # for _ in range(100):
+    #   try:
+    #     message, payload = self._conn.recv()
+    #     break
+    #   except Exception as e:
+    #     time.sleep(0.05)
+    #     print(e, "Error during receiving")
+    #     # self.reset()
+    #   # break
+
+    # message = None
+    # while message == None:
+    #   try:
+    #     message, payload = self._conn.recv()
+    #   except Exception as e:
+    #     print(e, "Error during receiving")
+
+
+    # message, payload = self._conn.recv()
     # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
       stacktrace = payload

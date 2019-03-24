@@ -25,17 +25,19 @@ from scipy.stats import multivariate_normal
 
 
 # 2000 soft 3000 hard
+# TODO add different config file
 ENV_CONFIG = {
     "x_res": 96,
     "y_res": 96,
-    "port": 2000,
+    "port": 3000,
     "image_mode": "encode",
-    "localhost": "192.168.100.18",
+    "localhost": "192.168.100.37",
     "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 6,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 2,           # 4 for one point attention, 5 for control view field
+    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 4,           # 4 for one point attention, 5 for control view field
 }
+
 
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
@@ -88,6 +90,7 @@ class CarlaEnv(gym.Env):
         self._image_rgb2 = []          # save a list of rgb image
         self._history_waypoint = []
         self._obs_collect = []
+        self._global_step = 0
         # self._d_collect = []
         # initialize our world
         self.server_port = ENV_CONFIG['port']
@@ -109,6 +112,7 @@ class CarlaEnv(gym.Env):
     def restart(self):
         """restart world and add sensors"""
         world = self.world
+        self._global_step = 0
         # actors
         self.actor_list = []          # save actor list for destroying them after finish
         self.vehicle = None
@@ -165,6 +169,17 @@ class CarlaEnv(gym.Env):
         except Exception as e:
             print("spawn fail, sad news", e)
 
+    # def reset(self):
+    #     error = None
+    #     for _ in range(100):
+    #         try:
+    #             return self._reset()
+    #         except Exception as e:
+    #             time.sleep(0.05)
+    #             print("Error during reset")
+    #             error = e
+    #     raise error
+
     def reset(self):
         self.restart()
         weak_self = weakref.ref(self)
@@ -220,9 +235,12 @@ class CarlaEnv(gym.Env):
             obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] + mask
         else:
             obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
-        return np.clip(obs, 0, 255)
+        self._obs_collect.append(np.clip(obs, 0, 255))  # clip in case we want render
+        if len(self._obs_collect) > 32:
+            self._obs_collect.pop(0)
+        return self._obs_collect[-1]
 
-    @ staticmethod
+    @staticmethod
     def _generate_point_list():
         """
         generate the Cartesian coordinates for every pixel in the picture, because attention point is represented in
@@ -302,6 +320,7 @@ class CarlaEnv(gym.Env):
             self._image_rgb1.append(array)
             if len(self._image_rgb1) > 32:
                 self._image_rgb1.pop(0)
+
     @staticmethod
     def _parse_image2(weak_self, image, cc, use):
         """convert BGRA to RGB"""
@@ -346,7 +365,16 @@ class CarlaEnv(gym.Env):
         if len(self._history_invasion) > 32:
              self._history_invasion.pop(0)
 
+    # def step(self, action):
+    #     try:
+    #         obs = self._step(action)
+    #         return obs
+    #     except Exception:
+    #         print("Error during step, terminating episode early")
+    #     return self._obs_collect[-1], 0, True, self._history_info[-1]
+
     def step(self, action):
+        self._global_step += 1
 
         def compute_reward(info, prev_info):
             reward = 0.0
@@ -359,7 +387,7 @@ class CarlaEnv(gym.Env):
             elif info["collision"] > 5:
                 reward -= info['speed'] * 1
 
-            print("current speed", info["speed"], "current reward", reward, "collision", info['collision'])
+            print(self._global_step, "current speed", info["speed"], "collision", info['collision'])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
                  reward -= info["speed"]
@@ -413,7 +441,7 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 1:
+            if len(self._history_collision) > 0 and self._global_step > 55:
                 # print("collisin length", len(self._history_collision))
                 done = True
             # elif reward < -100:
@@ -431,19 +459,18 @@ class CarlaEnv(gym.Env):
         else:
             obs[:, :, 0:ENV_CONFIG["attention_channel"]] = obs[:, :, 0:ENV_CONFIG["attention_channel"]] * mask
 
-        self._obs_collect.append(np.clip(obs[:, :, 0:3], 0, 255))  # clip in case we want render
+        self._obs_collect.append(np.clip(obs, 0, 255))  # clip in case we want render
         if len(self._obs_collect) > 32:
             self._obs_collect.pop(0)
 
-        return np.clip(obs, 0, 255), reward, done, self._history_info[-1]
+        return self._obs_collect[-1], reward, done, self._history_info[-1]
 
     def render(self):
-
         display = pygame.display.set_mode(
             (ENV_CONFIG["x_res"], ENV_CONFIG["y_res"]),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
         # surface = pygame.surfarray.make_surface(env._image_rgb1[-1].swapaxes(0, 1))
-        surface = pygame.surfarray.make_surface(env._obs_collect[-1].swapaxes(0, 1))
+        surface = pygame.surfarray.make_surface(env._obs_collect[-1][:,:,0:3].swapaxes(0, 1))
         display.blit(surface, (0, 0))
         time.sleep(0.01)
         pygame.display.flip()
@@ -484,8 +511,8 @@ if __name__ == '__main__':
     start = time.time()
     R = 0
     while not done:
-        env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0, -1])
+        #env.render()
+        obs, reward, done, info = env.step([1, 0, 0, 0, 0])
         R += reward
         print(R)
         i += 1
