@@ -17,6 +17,26 @@ import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
+import os
+
+
+
+
+#
+# if arg.envconfig=ENV_CONFIG1
+#     ENV_CONFIG = ENV_CONFIG2
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"]="0"
+# elif arg.envconfig=ENV_CONFIG2
+#     ENV_CONFIG = ENV_CONFIG2
+# os.environ["CUDA_VISIBLE_DEVICES"]="0"
+# elif arg.envconfig=ENV_CONFIG3
+#     ENV_CONFIG = ENV_CONFIG2
+# elif arg.envconfig=ENV_CONFIG4
+#     ENV_CONFIG = ENV_CONFIG2
+
+
+#ENV_CONFIG = args.envconfig
 
 # Default environment configuration
 """ default is rgb 
@@ -26,10 +46,38 @@ from scipy.stats import multivariate_normal
 
 # 2000 soft 3000 hard
 # TODO add different config file
-ENV_CONFIG = {
+ENV_CONFIG1 = {
+    "x_res": 96,
+    "y_res": 96,
+    "port": 2000,
+    "image_mode": "encode",
+    "localhost": "192.168.100.18",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 2,           # 4 for one point attention, 5 for control view field
+    #logdir
+    #sysconfig cuda
+}
+
+
+ENV_CONFIG2 = {
     "x_res": 96,
     "y_res": 96,
     "port": 3000,
+    "image_mode": "encode",
+    "localhost": "192.168.100.18",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 4,           # 4 for one point attention, 5 for control view field
+}
+
+
+ENV_CONFIG3 = {
+    "x_res": 96,
+    "y_res": 96,
+    "port": 4000,
     "image_mode": "encode",
     "localhost": "192.168.100.37",
     "early_stop": True,        # if we use planet this has to be False
@@ -37,6 +85,35 @@ ENV_CONFIG = {
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
     "action_dim": 4,           # 4 for one point attention, 5 for control view field
 }
+
+
+ENV_CONFIG4 = {
+    "x_res": 96,
+    "y_res": 96,
+    "port": 5000,
+    "image_mode": "encode",
+    "localhost": "192.168.100.37",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 5,           # 4 for one point attention, 5 for control view field
+}
+
+
+ENV_CONFIG5 = {
+    "x_res": 96,
+    "y_res": 96,
+    "port": 6000,
+    "image_mode": "encode",
+    "localhost": "192.168.100.37",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 5,           # 4 for one point attention, 5 for control view field
+}
+
+
+ENV_CONFIG = ENV_CONFIG3
 
 
 class CarlaEnv(gym.Env):

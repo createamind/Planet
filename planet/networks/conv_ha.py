@@ -188,7 +188,7 @@ def decoder(state, data_shape):
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
   return dist
-# #
+#
 # def encoder(obs):
 #    """Extract deterministic features from an observation."""
 #    kwargs = dict(strides=2, activation=tf.nn.relu)
