@@ -51,7 +51,7 @@ ENV_CONFIG1 = {
     "y_res": 96,
     "port": 2000,
     "image_mode": "encode",
-    "localhost": "192.168.100.18",
+    "localhost": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -66,7 +66,7 @@ ENV_CONFIG2 = {
     "y_res": 96,
     "port": 3000,
     "image_mode": "encode",
-    "localhost": "192.168.100.18",
+    "localhost": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred

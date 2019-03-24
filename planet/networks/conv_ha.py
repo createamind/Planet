@@ -152,9 +152,9 @@ class DenseNet():
 #   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
 #       np.prod(hidden.shape[1:].as_list())])
 #   return hidden                                                                # shape(50,50,1024)
-
-
-
+#
+#
+#
 def encoder(obs):
 #   """Extract deterministic features from an observation."""
    kwargs = dict(strides=2, activation=tf.nn.relu)
