@@ -562,7 +562,7 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0 and self._global_step > 110:
+            if len(self._history_collision) > 0 and self._global_step > 55:
                 # print("collisin length", len(self._history_collision))
                 done = True
             # elif reward < -100:
@@ -634,7 +634,7 @@ if __name__ == '__main__':
     while not done:
         i += 1
         # env.render()
-        obs, reward, done, info = env.step([1, 0])
+        obs, reward, done, info = env.step([1, 0, 0, 0, 0])
         R += reward
         print(R)
     # env.__del__()

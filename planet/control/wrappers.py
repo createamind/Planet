@@ -621,7 +621,6 @@ class ExternalProcess(object):
         if fail_time > 50:
           break
 
-
     # message, payload = self._conn.recv()
     # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
@@ -631,7 +630,89 @@ class ExternalProcess(object):
       return payload
     raise KeyError('Received message of unexpected type {}'.format(message))
 
-  def _worker(self, constructor, conn):
+  # def _worker(self, constructor, conn):
+  #   """The process waits for actions and sends back environment results.
+  #
+  #   Args:
+  #     constructor: Constructor for the OpenAI Gym environment.
+  #     conn: Connection for communication to the main process.
+  #
+  #   Raises:
+  #     KeyError: When receiving a message of unknown type.
+  #   """
+  #   i = 0
+  #   try:
+  #     env = constructor()
+  #     while True:
+  #       try:
+  #         # Only block for short times to have keyboard exceptions be raised.
+  #         # message = [0]
+  #         if conn.poll():
+  #           # print(2222222222222222222222222222222)
+  #           i += 1
+  #           message, payload = conn.recv()
+  #           message_old, payload_old = message, payload
+  #         else:
+  #           if i > 5:
+  #             message, payload = message_old, payload_old
+  #           else:
+  #             continue
+  #
+  #
+  #           # continue
+  #           # try:
+  #           #   if payload[0] != 'step':
+  #           #     continue
+  #           #   elif payload[0] == 'step':
+  #           #     message, payload = message_old, payload_old
+  #           #     print(message_old, payload_old)
+  #           #     print(1111111111111111111111111111111)
+  #           # except Exception as e:
+  #           #   print(e)
+  #           #   continue
+  #
+  #       except (EOFError, KeyboardInterrupt):
+  #         break
+  #       # _ACCESS = 1
+  #       # _CALL = 2
+  #       # _RESULT = 3
+  #       # _EXCEPTION = 4
+  #       # _CLOSE = 5
+  #       # message
+  #       # Out[8]: 2
+  #       # payload
+  #       # Out[9]: ('reset', (), {})
+  #       # payload
+  #       # Out[3]:
+  #       # ('step',
+  #       #  (array([-0.99321824, -0.530674, -0.08939575, 0.71525276, -0.20580809],
+  #       #         dtype=float32),),
+  #       #  {})
+  #       if message == self._ACCESS:
+  #         name = payload
+  #         result = getattr(env, name)
+  #         conn.send((self._RESULT, result))
+  #         continue
+  #       if message == self._CALL:
+  #         name, args, kwargs = payload
+  #         # old_payload = payload
+  #         # if payload == old_payload:
+  #         #     name, args, kwargs = old_payload
+  #
+  #         result = getattr(env, name)(*args, **kwargs)
+  #         conn.send((self._RESULT, result))
+  #         continue
+  #       if message == self._CLOSE:
+  #         assert payload is None
+  #         break
+  #       raise KeyError('Received message of unknown type {}'.format(message))
+  #   except Exception:
+  #     stacktrace = ''.join(traceback.format_exception(*sys.exc_info()))
+  #     tf.logging.error('Error in environment process: {}'.format(stacktrace))
+  #     conn.send((self._EXCEPTION, stacktrace))
+  #   conn.close()
+
+  def _worker(self, constructor, conn):  # A new process is created.
     """The process waits for actions and sends back environment results.
 
     Args:
@@ -643,8 +724,10 @@ class ExternalProcess(object):
     """
     try:
       env = constructor()
-      while True:
+      while True:         # env main loop
         try:
+          # env.render()    # for breakout
+
           # Only block for short times to have keyboard exceptions be raised.
           if not conn.poll(0.1):
             continue
@@ -658,8 +741,17 @@ class ExternalProcess(object):
           continue
         if message == self._CALL:
           name, args, kwargs = payload
+
           result = getattr(env, name)(*args, **kwargs)
           conn.send((self._RESULT, result))
+
+          # # resending step...
+          if name == 'step':
+            # print('start...')
+            while not conn.poll():
+              # print('resending step')
+              env._env._env._env._env.step(*args)
+
           continue
         if message == self._CLOSE:
           assert payload is None
