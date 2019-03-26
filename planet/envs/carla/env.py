@@ -11,32 +11,17 @@ import random
 import time
 import subprocess
 from carla import ColorConverter as cc
+# import psutil
 import math
 # import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import atexit
 from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
 import os
+import signal
 
-
-
-
-#
-# if arg.envconfig=ENV_CONFIG1
-#     ENV_CONFIG = ENV_CONFIG2
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"]="0"
-# elif arg.envconfig=ENV_CONFIG2
-#     ENV_CONFIG = ENV_CONFIG2
-# os.environ["CUDA_VISIBLE_DEVICES"]="0"
-# elif arg.envconfig=ENV_CONFIG3
-#     ENV_CONFIG = ENV_CONFIG2
-# elif arg.envconfig=ENV_CONFIG4
-#     ENV_CONFIG = ENV_CONFIG2
-
-
-#ENV_CONFIG = args.envconfig
 
 # Default environment configuration
 """ default is rgb 
@@ -49,24 +34,20 @@ import os
 ENV_CONFIG1 = {
     "x_res": 96,
     "y_res": 96,
-    "port": 2000,
     "image_mode": "encode",
-    "localhost": "localhost",
+    "host": "192.168.100.18",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
     "action_dim": 2,           # 4 for one point attention, 5 for control view field
-    #logdir
-    #sysconfig cuda
 }
 
 
 ENV_CONFIG2 = {
     "x_res": 96,
     "y_res": 96,
-    "port": 3000,
     "image_mode": "encode",
-    "localhost": "localhost",
+    "host": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -77,9 +58,8 @@ ENV_CONFIG2 = {
 ENV_CONFIG3 = {
     "x_res": 96,
     "y_res": 96,
-    "port": 4000,
     "image_mode": "encode",
-    "localhost": "192.168.100.37",
+    "host": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -90,9 +70,8 @@ ENV_CONFIG3 = {
 ENV_CONFIG4 = {
     "x_res": 96,
     "y_res": 96,
-    "port": 5000,
     "image_mode": "encode",
-    "localhost": "192.168.100.37",
+    "host": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -103,9 +82,8 @@ ENV_CONFIG4 = {
 ENV_CONFIG5 = {
     "x_res": 96,
     "y_res": 96,
-    "port": 6000,
     "image_mode": "encode",
-    "localhost": "192.168.100.37",
+    "host": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -113,7 +91,32 @@ ENV_CONFIG5 = {
 }
 
 
-ENV_CONFIG = ENV_CONFIG3
+ENV_CONFIG_test = {
+    "x_res": 96,
+    "y_res": 96,
+    "image_mode": "encode",
+    "host": "localhost",
+    "early_stop": True,        # if we use planet this has to be False
+    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
+    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
+    "action_dim": 2,           # 4 for one point attention, 5 for control view field
+}
+
+
+ENV_CONFIG = ENV_CONFIG5
+live_carla_processes = set()
+
+
+def cleanup():
+    print("Killing live carla processes", live_carla_processes)
+    for pgid in live_carla_processes:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except:
+            pass
+
+
+atexit.register(cleanup)
 
 
 class CarlaEnv(gym.Env):
@@ -168,26 +171,56 @@ class CarlaEnv(gym.Env):
         self._history_waypoint = []
         self._obs_collect = []
         self._global_step = 0
-        # self._d_collect = []
-        # initialize our world
-        self.server_port = ENV_CONFIG['port']
+        # # self._d_collect = []
+        # # initialize our world
+        # self._carla_server = ServerManagerBinary()
+        # self.server_port = random.randint(1000, 60000)
+        # self.world = None
+        #
+        # # start a new carla service
+        # self._carla_server.reset(self.config["host"], self.server_port)
+        # self._carla_server.wait_until_ready()
+        self.server_process = None
+        self.server_port = None
         self.world = None
+        self.init_server()
+        self._error_rest_test = 0
+
+    def __del__(self):
+        cleanup()
+
+    def init_server(self):
+        print("Initializing new Carla server...")
+        # Create a new server process and start the client.
+        self.server_port = random.randint(10000, 60000)
+        self.server_process = subprocess.Popen(
+            [
+                "/home/gu/carla94/CarlaUE4.sh", "-benchmark", '-fps=20'
+                "-ResX=400", "-ResY=300", "-carla-port={}".format(self.server_port)
+            ],
+            preexec_fn=os.setsid,
+            stdout=open(os.devnull, "w"))
+        live_carla_processes.add(os.getpgid(self.server_process.pid))
+        time.sleep(6)  # wait for world get ready
+
+    def _restart(self):
+        """restart world and add sensors"""
+        # self.init_server()
         connect_fail_times = 0
+        self.world = None
         while self.world is None:
             try:
-                self.client = carla.Client(ENV_CONFIG["localhost"], self.server_port)
-                self.client.set_timeout(120.0)
+                self.client = carla.Client(self.config["host"], self.server_port)
+                self.client.set_timeout(2.0)
                 self.world = self.client.get_world()
                 self.map = self.world.get_map()
             except Exception as e:
                 connect_fail_times += 1
                 print("Error connecting: {}, attempt {}".format(e, connect_fail_times))
                 time.sleep(2)
-            if connect_fail_times > 10:
+            if connect_fail_times > 15:
                 break
 
-    def restart(self):
-        """restart world and add sensors"""
         world = self.world
         self._global_step = 0
         # actors
@@ -246,19 +279,27 @@ class CarlaEnv(gym.Env):
         except Exception as e:
             print("spawn fail, sad news", e)
 
-    # def reset(self):
-    #     error = None
-    #     for _ in range(100):
-    #         try:
-    #             return self._reset()
-    #         except Exception as e:
-    #             time.sleep(0.05)
-    #             print("Error during reset")
-    #             error = e
-    #     raise error
-
     def reset(self):
-        self.restart()
+        error = None
+        for _ in range(100):
+            try:
+                # print("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                self._restart()
+                # print("*****************KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+                return self._reset()
+            except Exception as e:
+                cleanup()
+                self.init_server()
+                print("********************Error during reset********************")
+                error = e
+        raise error
+
+    def _reset(self):
+        # self._error_rest_test += 1
+        # if self._error_rest_test < 4:
+        #     print(1/0)
+        # else:
+        #     print("+++++++++++++++++++++++++++++++++++++++++++++++")
         weak_self = weakref.ref(self)
         # set invasion sensor
         self.invasion_sensor.listen(lambda event: self._parse_invasion(weak_self, event))
@@ -442,15 +483,15 @@ class CarlaEnv(gym.Env):
         if len(self._history_invasion) > 32:
              self._history_invasion.pop(0)
 
-    # def step(self, action):
-    #     try:
-    #         obs = self._step(action)
-    #         return obs
-    #     except Exception:
-    #         print("Error during step, terminating episode early")
-    #     return self._obs_collect[-1], 0, True, self._history_info[-1]
-
     def step(self, action):
+        try:
+            obs = self._step(action)
+            return obs
+        except Exception:
+            print("Error during step, terminating episode early")
+        return self._obs_collect[-1], 0, True, self._history_info[-1]
+
+    def _step(self, action):
         self._global_step += 1
 
         def compute_reward(info, prev_info):
@@ -479,10 +520,13 @@ class CarlaEnv(gym.Env):
                    (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
       
         # command = self.planner()
+
+
+
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # sleep a little waiting for the responding from simulator
-        if ENV_CONFIG["attention_mode"] == "None" or ENV_CONFIG["attention_mode"] == "hard":
-            time.sleep(0.05)
+        # if ENV_CONFIG["attention_mode"] == "None": #  or ENV_CONFIG["attention_mode"] == "hard":
+        #   time.sleep(0.05)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -518,7 +562,7 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0 and self._global_step > 55:
+            if len(self._history_collision) > 0 and self._global_step > 110:
                 # print("collisin length", len(self._history_collision))
                 done = True
             # elif reward < -100:
@@ -584,16 +628,17 @@ if __name__ == '__main__':
     obs = env.reset()
     print(obs.shape)
     done = False
-    i = 0
     start = time.time()
     R = 0
+    i = 0
     while not done:
-        #env.render()
-        obs, reward, done, info = env.step([1, 0, 0, 0, 0])
+        i += 1
+        # env.render()
+        obs, reward, done, info = env.step([1, 0])
         R += reward
         print(R)
-        i += 1
+    # env.__del__()
     # print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
     # print("++++++++++++++++++++=", min(env._d_collect))
     print("{:.2f} fps".format(float(i / (time.time() - start))))
-    print(R)
+    # print(R)

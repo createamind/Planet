@@ -152,8 +152,8 @@ class DenseNet():
 #   hidden = tf.reshape(hidden, tools.shape(obs['image'])[:2] + [
 #       np.prod(hidden.shape[1:].as_list())])
 #   return hidden                                                                # shape(50,50,1024)
-#
-#
+
+
 #
 def encoder(obs):
 #   """Extract deterministic features from an observation."""
@@ -188,7 +188,7 @@ def decoder(state, data_shape):
   dist = tools.MSEDistribution(mean)
   dist = tfd.Independent(dist, len(data_shape))
   return dist
-#
+# #
 # def encoder(obs):
 #    """Extract deterministic features from an observation."""
 #    kwargs = dict(strides=2, activation=tf.nn.relu)

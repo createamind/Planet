@@ -346,7 +346,7 @@ class Run(object):
     self._logger.warning('Exception:\n{}'.format(message))
     self._logger.warning('Failed.')
     try:
-      self._store_done()
+      # self._store_done()
       self._store_fail(message)
     except Exception:
       message = ''.join(traceback.format_exception(*sys.exc_info()))

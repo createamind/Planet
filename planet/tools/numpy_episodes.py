@@ -71,7 +71,7 @@ def numpy_episodes(
   train = train.batch(shape[0], drop_remainder=True)
   train = train.map(sequence_preprocess_fn, 10).prefetch(20)
   test = test.flat_map(chunking)
-  test = test.shuffle(100 * shape[0])
+  test = test.shuffle(10 * shape[0])
   test = test.batch(shape[0], drop_remainder=True)
   test = test.map(sequence_preprocess_fn, 10).prefetch(20)
   return attr_dict.AttrDict(train=train, test=test)
@@ -91,7 +91,7 @@ def _read_spec(directory, return_length=False, numpy_types=False, **kwargs):
     return dtypes, shapes, length
   else:
     return dtypes, shapes
-
+#
 
 def _read_episodes_scan(
     directory, batch_size, every, max_episodes=10, **kwargs):
@@ -112,12 +112,14 @@ def _read_episodes_scan(
         break
 
     # At the end of the epoch, add new episodes to the cache.
-    max_episodes = 5
+    max_episodes = 100
 
     recent = {}
     filenames = tf.gfile.Glob(os.path.join(directory, '*.npz'))
 
-
+   # some probability for reloading cache.
+    if np.random.random() > 0.5:
+       filenames_old = {}
     filenames = [filename for filename in filenames if filename not in filenames_old]    # time consuming...
     for filename in filenames:
       filenames_old[filename]=filename
@@ -127,39 +129,39 @@ def _read_episodes_scan(
       recent[filename] = _read_episode(filename, **kwargs)
       if len(recent) == max_episodes:
         break
-      print(index, len(recent), max_episodes, len(cache), len(filenames_old))
+      # print(index, len(recent), max_episodes, len(cache), len(filenames_old))
 
     if max_episodes - len(cache) < len(recent):
       for _ in range(len(recent)-(max_episodes - len(cache))):
         cache.popitem()
-        print('after pop:', len(recent), max_episodes, len(cache), len(filenames_old))
+        # print('after pop:', len(recent), max_episodes, len(cache), len(filenames_old))
     cache.update(recent)
 # #
-def _read_episodes_scan(
-    directory, batch_size, every, max_episodes=None, **kwargs):
-  recent = {}
-  cache = {}
-  while True:
-    index = 0
-    for episode in np.random.permutation(list(recent.values())):
-      yield episode
-      index += 1
-      if index > every / 2:
-        break
-    for episode in np.random.permutation(list(cache.values())):
-      index += 1
-      yield episode
-      if index > every:
-        break
-    # At the end of the epoch, add new episodes to the cache.
-    cache.update(recent)
-    recent = {}
-    filenames = tf.gfile.Glob(os.path.join(directory, '*.npz'))
-    filenames = [filename for filename in filenames if filename not in cache]
-    if max_episodes:
-      filenames = filenames[:max_episodes - len(cache)]
-    for filename in filenames:
-      recent[filename] = _read_episode(filename, **kwargs)
+# def _read_episodes_scan(
+#     directory, batch_size, every, max_episodes=None, **kwargs):
+#   recent = {}
+#   cache = {}
+#   while True:
+#     index = 0
+#     for episode in np.random.permutation(list(recent.values())):
+#       yield episode
+#       index += 1
+#       if index > every / 2:
+#         break
+#     for episode in np.random.permutation(list(cache.values())):
+#       index += 1
+#       yield episode
+#       if index > every:
+#         break
+#     # At the end of the epoch, add new episodes to the cache.
+#     cache.update(recent)
+#     recent = {}
+#     filenames = tf.gfile.Glob(os.path.join(directory, '*.npz'))
+#     filenames = [filename for filename in filenames if filename not in cache]
+#     if max_episodes:
+#       filenames = filenames[:max_episodes - len(cache)]
+#     for filename in filenames:
+#       recent[filename] = _read_episode(filename, **kwargs)
 
 
 def _read_episodes_reload(directory, batch_size, max_episodes=None, **kwargs):
