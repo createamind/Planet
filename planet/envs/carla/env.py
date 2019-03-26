@@ -203,6 +203,7 @@ class CarlaEnv(gym.Env):
         for pgid in live:
             try:
                 os.killpg(pgid, signal.SIGKILL)
+                CarlaEnv.live_carla_processes = []
             except:
                 pass
 
@@ -210,6 +211,7 @@ class CarlaEnv(gym.Env):
     #     self.cleanup(CarlaEnv.live_carla_processes)
 
     def init_server(self):
+      # if len(CarlaEnv.live_carla_processes) == 0:
         print("Initializing new Carla server...")
         CarlaEnv.server_port = random.randint(10000, 60000)
         self.server_port = CarlaEnv.server_port
@@ -225,14 +227,15 @@ class CarlaEnv(gym.Env):
             ],
             preexec_fn=os.setsid,
             stdout=open(os.devnull, "w"))
-        print("CarlaEnv.live_carla_processes after init", CarlaEnv.live_carla_processes)
+
         CarlaEnv.live_carla_processes.append(os.getpgid(self.server_process.pid))
+        print("CarlaEnv.live_carla_processes after init", CarlaEnv.live_carla_processes)
         time.sleep(6)  # wait for world get ready
 
 
     def _restart(self):
         """restart world and add sensors"""
-        self.init_server()
+        #self.init_server()
 
         if len(CarlaEnv.live_carla_processes) == 0:
              self.init_server()
@@ -315,11 +318,10 @@ class CarlaEnv(gym.Env):
             try:
                 print("CarlaEnv.live_carla_processes before reset", CarlaEnv.live_carla_processes)
                 self._restart()
-                return self._reset()
+                a = self._reset()
+                return a
             except Exception as e:
                 self.cleanup(CarlaEnv.live_carla_processes)
-
-
                 # self.init_server()
                 print("********************Error during reset********************")
                 error = e
@@ -596,7 +598,7 @@ class CarlaEnv(gym.Env):
             if (len(self._history_collision) > 0 and self._global_step > 55) or self._global_step == 1000:
                 # print("collisin length", len(self._history_collision))
                 done = True
-                self.cleanup(CarlaEnv.live_carla_processes)
+                # self.cleanup(CarlaEnv.live_carla_processes)
             # elif reward < -100:
             #     done = True
 
