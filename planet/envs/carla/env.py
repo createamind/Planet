@@ -183,7 +183,7 @@ class CarlaEnv(gym.Env):
         self.server_process = None
         self.server_port = None
         self.world = None
-        self.init_server()
+        # self.init_server()
         self._error_rest_test = 0
 
     def __del__(self):
@@ -205,7 +205,7 @@ class CarlaEnv(gym.Env):
 
     def _restart(self):
         """restart world and add sensors"""
-        # self.init_server()
+        self.init_server()
         connect_fail_times = 0
         self.world = None
         while self.world is None:
@@ -289,7 +289,7 @@ class CarlaEnv(gym.Env):
                 return self._reset()
             except Exception as e:
                 cleanup()
-                self.init_server()
+                # self.init_server()
                 print("********************Error during reset********************")
                 error = e
         raise error

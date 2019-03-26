@@ -203,7 +203,7 @@ class ActionRepeat(object):
     current_step = 0
     while current_step < self._amount and not done:
       observ, reward, done, info = self._env.step(action)
-      # time.sleep(0.08)
+      time.sleep(0.08)
       total_reward += reward
       current_step += 1
     return observ, total_reward, done, info
