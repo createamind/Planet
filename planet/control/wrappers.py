@@ -280,6 +280,7 @@ class LimitDuration(object):
     # early stop
     if (self._step > 55 and done) or self._step >= self._duration:  # e.g. 100~1000
       done = True
+      # self.env._env._env.clearup()
       self._step = None
     elif self._step < 55 and done:
         print('step error... please check the env.')

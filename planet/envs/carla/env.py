@@ -104,22 +104,33 @@ ENV_CONFIG_test = {
 
 
 ENV_CONFIG = ENV_CONFIG5
-live_carla_processes = set()
+# live_carla_processes = set()
 
 
-def cleanup():
-    print("Killing live carla processes", live_carla_processes)
-    for pgid in live_carla_processes:
+def cleanup1():
+    print("Killing live>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>carla processes", CarlaEnv.live_carla_processes)
+    for pgid in CarlaEnv.live_carla_processes:
         try:
             os.killpg(pgid, signal.SIGKILL)
         except:
             pass
 
 
-atexit.register(cleanup)
+atexit.register(cleanup1)
+
+#
+# def cleanup(live_carla_processes):
+#     print("Killing live carla processes", live_carla_processes)
+#     for pgid in live_carla_processes:
+#         try:
+#             os.killpg(pgid, signal.SIGKILL)
+#         except:
+#             pass
 
 
 class CarlaEnv(gym.Env):
+    live_carla_processes = []
+    server_port = random.randint(10000, 60000)
     def __init__(self, config=ENV_CONFIG):
         self.config = config
         self.command = {
@@ -181,18 +192,32 @@ class CarlaEnv(gym.Env):
         # self._carla_server.reset(self.config["host"], self.server_port)
         # self._carla_server.wait_until_ready()
         self.server_process = None
-        self.server_port = None
+        self.server_port = CarlaEnv.server_port
+        self.p = random.randint(10000, 60000)
         self.world = None
         # self.init_server()
         self._error_rest_test = 0
 
-    def __del__(self):
-        cleanup()
+    def cleanup(self, live):
+        print(">>>>>>>>>>>>>>>>>>>>>>>Killing live carla processes>>>>>>>>>>>>>>>>>>>.", live)
+        for pgid in live:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except:
+                pass
+
+    # def __del__(self):
+    #     self.cleanup(CarlaEnv.live_carla_processes)
 
     def init_server(self):
         print("Initializing new Carla server...")
+        CarlaEnv.server_port = random.randint(10000, 60000)
+        self.server_port = CarlaEnv.server_port
         # Create a new server process and start the client.
-        self.server_port = random.randint(10000, 60000)
+        # if live_carla_processes == {}:
+        # self.server_port = random.randint(10000, 60000)
+        print("CarlaEnv.live_carla_processes before init", CarlaEnv.live_carla_processes)
+
         self.server_process = subprocess.Popen(
             [
                 "/home/gu/carla94/CarlaUE4.sh", "-benchmark", '-fps=20'
@@ -200,12 +225,17 @@ class CarlaEnv(gym.Env):
             ],
             preexec_fn=os.setsid,
             stdout=open(os.devnull, "w"))
-        live_carla_processes.add(os.getpgid(self.server_process.pid))
+        print("CarlaEnv.live_carla_processes after init", CarlaEnv.live_carla_processes)
+        CarlaEnv.live_carla_processes.append(os.getpgid(self.server_process.pid))
         time.sleep(6)  # wait for world get ready
+
 
     def _restart(self):
         """restart world and add sensors"""
         self.init_server()
+
+        if len(CarlaEnv.live_carla_processes) == 0:
+             self.init_server()
         connect_fail_times = 0
         self.world = None
         while self.world is None:
@@ -283,12 +313,13 @@ class CarlaEnv(gym.Env):
         error = None
         for _ in range(100):
             try:
-                # print("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+                print("CarlaEnv.live_carla_processes before reset", CarlaEnv.live_carla_processes)
                 self._restart()
-                # print("*****************KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
                 return self._reset()
             except Exception as e:
-                cleanup()
+                self.cleanup(CarlaEnv.live_carla_processes)
+
+
                 # self.init_server()
                 print("********************Error during reset********************")
                 error = e
@@ -504,8 +535,8 @@ class CarlaEnv(gym.Env):
                 reward -= info['speed'] * 2
             elif info["collision"] > 5:
                 reward -= info['speed'] * 1
-
-            print(self._global_step, "current speed", info["speed"], "collision", info['collision'])
+            print("<<<<<<<<<<CarlaEnv.live_carla_processes during step>>>>>>>>>>>>", CarlaEnv.live_carla_processes)
+            # print(self._global_step, "current speed", info["speed"], "collision", info['collision'])
             new_invasion = list(set(info["lane_invasion"]) - set(prev_info["lane_invasion"]))
             if 'S' in new_invasion:     # go across solid lane
                  reward -= info["speed"]
@@ -562,9 +593,10 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0 and self._global_step > 55:
+            if (len(self._history_collision) > 0 and self._global_step > 55) or self._global_step == 1000:
                 # print("collisin length", len(self._history_collision))
                 done = True
+                self.cleanup(CarlaEnv.live_carla_processes)
             # elif reward < -100:
             #     done = True
 
@@ -625,8 +657,9 @@ class CarlaEnv(gym.Env):
 
 if __name__ == '__main__':
     env = CarlaEnv()
-    obs = env.reset()
-    print(obs.shape)
+    env2 = CarlaEnv()
+    obs1 = env.reset()
+    print(obs1.shape)
     done = False
     start = time.time()
     R = 0
