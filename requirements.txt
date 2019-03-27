@@ -1,7 +1,6 @@
 absl-py==0.7.1
 astor==0.7.1
 backcall==0.1.0
-carla==0.9.4
 certifi==2019.3.9
 chardet==3.0.4
 cloudpickle==0.8.0
@@ -14,7 +13,6 @@ grpcio==1.19.0
 gym==0.12.0
 h5py==2.9.0
 idna==2.8
-ipython==7.3.0
 ipython-genutils==0.2.0
 jedi==0.13.3
 Keras-Applications==1.0.7

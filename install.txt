@@ -1,0 +1,14 @@
+sudo apt install zsh
+https://ohmyz.sh/
+sh -c "$(curl -fsSL https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+
+git clone https://github.com/createamind/Planet
+cd Planet
+virtualenv -p python3 planetenv
+source planetenv/bin/activate
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
+pip install -r requirements.txt
+
+carla:
+carla 94 下载地址： 链接: https://pan.baidu.com/s/1i6VP0vHDgZ31JuHu9l7IrQ 提取码: w2cr
