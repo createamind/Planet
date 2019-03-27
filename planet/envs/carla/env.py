@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym.spaces import Box, Discrete, Tuple
-from agents.navigation.local_planner import RoadOption
+#from agents.navigation.local_planner import RoadOption
 # Default environment configuration
 
 """ default is rgb 

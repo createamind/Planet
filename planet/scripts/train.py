@@ -50,6 +50,14 @@ matplotlib.use('Agg')
 import ruamel.yaml as yaml
 import tensorflow as tf
 
+
+import sys
+sys.path
+sys.path.append('/home/zdx/github/Planet/planet')
+sys.path.append('/home/zdx/github/Planet')
+print(sys.path)
+
+
 from planet import models
 from planet import tools
 from planet import training
