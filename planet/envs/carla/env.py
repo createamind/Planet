@@ -119,34 +119,34 @@ def cleanup():
 atexit.register(cleanup)
 
 
-def set_timeout(seconds):
-    def wrap(func):
-        def handle(signum, frame):
-            raise RuntimeError
-
-        def to_do(*args, **kwargs):
-            signal.signal(signal.SIGALRM, handle)
-            signal.alarm(seconds)
-            r = func(*args, **kwargs)
-            signal.alarm(0)
-            return r
-
-        return to_do
-    return wrap
+# def set_timeout(seconds):
+#     def wrap(func):
+#         def handle(signum, frame):
+#             raise RuntimeError
+#
+#         def to_do(*args, **kwargs):
+#             signal.signal(signal.SIGALRM, handle)
+#             signal.alarm(seconds)
+#             r = func(*args, **kwargs)
+#             signal.alarm(0)
+#             return r
+#
+#         return to_do
+#     return wrap
 import threading
 
-# def set_timeout(seconds):
-#     def wrapper(func):
-#         def __wrapper(*args):
-#             t = threading.Thread(target=func, args=args)
-#             t.setDaemon(True)
-#             t.start()
-#             t.join(timeout=seconds)
-#             if t.is_alive():
-#                 print('time is out.')
-#                 raise Exception('Function execution timeout')
-#         return __wrapper
-#     return wrapper
+def set_timeout(seconds):
+    def wrapper(func):
+        def __wrapper(*args):
+            t = threading.Thread(target=func, args=args)
+            t.setDaemon(True)
+            t.start()
+            t.join(timeout=seconds)
+            if t.is_alive():
+                print('time is out.')
+                raise Exception('Function execution timeout')
+        return __wrapper
+    return wrapper
 
 
 class CarlaEnv(gym.Env):
@@ -311,17 +311,21 @@ class CarlaEnv(gym.Env):
         i += 1
         print(i, time.time())
         for a in self.world.get_actors().filter('vehicle.*'):
+            # print(a)
             try:
-                i += 1
-                print(i, time.time(), "destroy vehicle", a)
+                # i += 1
+                # print(i, time.time(), "destroy vehicle", a)
                 a.destroy()
+                # time.sleep(0.01)
             except:
                 pass
         for a in self.world.get_actors().filter('sensor.*'):
+            # print(a)
             try:
-                i += 1
-                print(i, time.time(), "destroy sensor", a)
+                # i += 1
+                # print(i, time.time(), "destroy sensor", a)
                 a.destroy()
+                # time.sleep(0.01)
             except:
                 pass
 
@@ -346,7 +350,7 @@ class CarlaEnv(gym.Env):
             self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
             print("spawn vehicle_id<<<<<<<<<<<<<<<<<<", self.vehicle.id)
             i += 1
-            print(i, time.time())
+            print(i, time.time())  # 26
             self.actor_list.append(self.vehicle)
 
             # setup rgb camera1
@@ -363,13 +367,14 @@ class CarlaEnv(gym.Env):
             print(i, time.time())
             camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
             i += 1
-            print(i, time.time())
+            print(i, time.time())  # 31
             camera_rgb1.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
 
             i += 1
 
             # time.sleep(15)
-            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 35 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            print("BBBBBBBBBBBBBBBBUUUUUUUUUUUUUUUUUUGGGGGGGGGGGGGGGGGGGGGGGGG")
+            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
                   self.camera_rgb1.id)
             # print("camera_id", self.camera_rgb1.id)
@@ -446,11 +451,11 @@ class CarlaEnv(gym.Env):
                 cleanup()
                 self.init_server()
                 # self.destroy_actor()
-                print("********************Error during reset in environment********************", time.time())
+                print(e, "********************Error during reset in environment********************", time.time())
                 error = e
         raise error
 
-    @set_timeout(10)
+   #  @set_timeout(10)
     def _reset(self):
         # self._error_rest_test += 1
         # if self._error_rest_test < 4:
@@ -648,7 +653,7 @@ class CarlaEnv(gym.Env):
             print(e)
         return self._obs_collect[-1], 0, True, self._history_info[-1]
 
-    @set_timeout(10)
+    # @set_timeout(10)
     def _step(self, action):
         self._global_step += 1
 
