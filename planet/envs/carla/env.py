@@ -21,7 +21,7 @@ from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
 import os
 import signal
-
+from datetime import timedelta
 
 # Default environment configuration
 """ default is rgb 
@@ -35,7 +35,7 @@ ENV_CONFIG1 = {
     "x_res": 96,
     "y_res": 96,
     "image_mode": "encode",
-    "host": "192.168.100.18",
+    "host": "localhost",
     "early_stop": True,        # if we use planet this has to be False
     "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
     "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
@@ -103,7 +103,7 @@ ENV_CONFIG_test = {
 }
 
 
-ENV_CONFIG = ENV_CONFIG5
+ENV_CONFIG = ENV_CONFIG1
 live_carla_processes = set()
 
 
@@ -117,6 +117,36 @@ def cleanup():
 
 
 atexit.register(cleanup)
+
+
+def set_timeout(seconds):
+    def wrap(func):
+        def handle(signum, frame):
+            raise RuntimeError
+
+        def to_do(*args, **kwargs):
+            signal.signal(signal.SIGALRM, handle)
+            signal.alarm(seconds)
+            r = func(*args, **kwargs)
+            signal.alarm(0)
+            return r
+
+        return to_do
+    return wrap
+import threading
+
+# def set_timeout(seconds):
+#     def wrapper(func):
+#         def __wrapper(*args):
+#             t = threading.Thread(target=func, args=args)
+#             t.setDaemon(True)
+#             t.start()
+#             t.join(timeout=seconds)
+#             if t.is_alive():
+#                 print('time is out.')
+#                 raise Exception('Function execution timeout')
+#         return __wrapper
+#     return wrapper
 
 
 class CarlaEnv(gym.Env):
@@ -183,7 +213,7 @@ class CarlaEnv(gym.Env):
         self.server_process = None
         self.server_port = None
         self.world = None
-        self.init_server()
+        # self.init_server()
         self._error_rest_test = 0
 
     def __del__(self):
@@ -203,97 +233,224 @@ class CarlaEnv(gym.Env):
         live_carla_processes.add(os.getpgid(self.server_process.pid))
         time.sleep(6)  # wait for world get ready
 
+    @set_timeout(10)
     def _restart(self):
         """restart world and add sensors"""
         # self.init_server()
+        i = 0
+        i += 1
+        print(i, time.time())
         connect_fail_times = 0
+        i += 1
+        print(i, time.time())
         self.world = None
+        i += 1
+        print(i, time.time())
         while self.world is None:
             try:
+                i += 1
+                print(i, time.time())
                 self.client = carla.Client(self.config["host"], self.server_port)
+                i += 1
+                print(i, time.time())
                 self.client.set_timeout(2.0)
+                i += 1
+                print(i, time.time())
                 self.world = self.client.get_world()
+                i += 1
+                print(i, time.time())
                 self.map = self.world.get_map()
             except Exception as e:
+                i += 1
+                print(i, time.time())
                 connect_fail_times += 1
                 print("Error connecting: {}, attempt {}".format(e, connect_fail_times))
                 time.sleep(2)
             if connect_fail_times > 15:
                 break
-
+        i += 1
+        print(i, time.time())
         world = self.world
+        i += 1
+        print(i, time.time())
         self._global_step = 0
         # actors
-        self.actor_list = []          # save actor list for destroying them after finish
+        i += 1
+        print(i, time.time())
+        self.actor_list = [] # save actor list for destroying them after finish
+        i += 1
+        print(i, time.time())
         self.vehicle = None
+        i += 1
+        print(i, time.time())
         self.collision_sensor = None
+        i += 1
+        print(i, time.time())
         self.invasion_sensor = None
         # states and data
+        i += 1
+        print(i, time.time())
         self._history_info = []       # info history
+        i += 1
+        print(i, time.time())
         self._history_collision = []  # collision history
+        i += 1
+        print(i, time.time())
         self._history_invasion = []   # invasion history
+        i += 1
+        print(i, time.time())
         self._image_rgb1 = []         # save a list of rgb image
+        i += 1
+        print(i, time.time())
         self._image_rgb2 = []
+        i += 1
+        print(i, time.time())
         self._history_waypoint = []
 
         # destroy actors in the world before we start new episode
+        i += 1
+        print(i, time.time())
         for a in self.world.get_actors().filter('vehicle.*'):
             try:
+                i += 1
+                print(i, time.time(), "destroy vehicle", a)
                 a.destroy()
             except:
                 pass
         for a in self.world.get_actors().filter('sensor.*'):
             try:
+                i += 1
+                print(i, time.time(), "destroy sensor", a)
                 a.destroy()
             except:
                 pass
 
         try:
+            i += 1
+            print(i, time.time())
             bp_library = world.get_blueprint_library()
 
             # setup vehicle
+            i += 1
+            print(i, time.time())
             spawn_point = random.choice(world.get_map().get_spawn_points())
+            i += 1
+            print(i, time.time())
             bp_vehicle = bp_library.find('vehicle.lincoln.mkz2017')
+            i += 1
+            print(i, time.time())
             bp_vehicle.set_attribute('role_name', 'hero')
+            i += 1
+            print(i, time.time())
+
             self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
+            print("spawn vehicle_id<<<<<<<<<<<<<<<<<<", self.vehicle.id)
+            i += 1
+            print(i, time.time())
             self.actor_list.append(self.vehicle)
 
             # setup rgb camera1
+            i += 1
+            print(i, time.time())
             camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
+            i += 1
+            print(i, time.time())
             camera_rgb1 = bp_library.find('sensor.camera.rgb')
+            i += 1
+            print(i, time.time())
             camera_rgb1.set_attribute('fov', '120')
+            i += 1
+            print(i, time.time())
             camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
+            i += 1
+            print(i, time.time())
             camera_rgb1.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle)
+
+            i += 1
+
+            # time.sleep(15)
+            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 35 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
+                  self.camera_rgb1.id)
+            # print("camera_id", self.camera_rgb1.id)
+
+
+
+
+
+            i += 1
+            print(i, time.time()) # 36
             self.actor_list.append(self.camera_rgb1)
 
             # add collision sensors
+            i += 1
+            print(i, time.time()) # 37
             bp = bp_library.find('sensor.other.collision')
+
+            i += 1
+            print(i, time.time()) # 38
+
             self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
+            print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn sensor.other.collision', self.collision_sensor.id)
+            i += 1
+            print(i, time.time()) # 39
             self.actor_list.append(self.collision_sensor)
 
             # add invasion sensors
+            i += 1
+            print(i, time.time()) # 40
             bp = bp_library.find('sensor.other.lane_detector')
+            i += 1
+            print(i, time.time()) # 41
+
             self.invasion_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
-            self.actor_list.append(self.invasion_sensor)
+            print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>..spawn self.invasion_sensor', self.invasion_sensor.id)
+            i += 1
+            print(i, time.time()) # 42
+            self.actor_list.append(self.invasion_sensor)       # 39 steps for first time 42 steps for reset
         except Exception as e:
             print("spawn fail, sad news", e)
+
+    # def destroy_actor(self):
+    #     """
+    #     Remove and destroy all actors
+    #     """
+    #
+    #     # We need enumerate here, otherwise the actors are not properly removed
+    #     for i, _ in enumerate(self.actor_list):
+    #         if self.actor_list[i] is not None:
+    #             print(self.actor_list[i], "destory")
+    #             time.sleep(0.01)
+    #             self.actor_list[i].destroy()
+    #             # self.actor_list[i] = None
+    #
+    #     # self.actor_list = []
+
 
     def reset(self):
         error = None
         for _ in range(100):
             try:
-                # print("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
-                self._restart()
-                # print("*****************KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
-                return self._reset()
+                if len(live_carla_processes) == 0:
+                    self.init_server()
+                print("restart the env", "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+                self._restart()  # bugggggggggg!!!!!!!!!!!!!!!!!!!!!!!!
+                print("reset in env", "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+                obs = self._reset()
+                return obs
             except Exception as e:
+                f = open("/home/gu/error_log %s.txt" % str(time.time()), "w")
+                # f.write(str(e))
+                f.write('============Error====================, %s' % str(e))
+                f.close()
                 cleanup()
                 self.init_server()
-                print("********************Error during reset********************")
+                # self.destroy_actor()
+                print("********************Error during reset in environment********************", time.time())
                 error = e
         raise error
 
+    @set_timeout(10)
     def _reset(self):
         # self._error_rest_test += 1
         # if self._error_rest_test < 4:
@@ -340,8 +497,7 @@ class CarlaEnv(gym.Env):
                 "lane_invasion": invasion,
                 "traffic_light": str(self.vehicle.get_traffic_light_state()),    # Red Yellow Green Off Unknown
                 "is_at_traffic_light": self.vehicle.is_at_traffic_light(),       # True False
-                "collision": len(self._history_collision)
-        }
+                "collision": len(self._history_collision)}
 
         self._history_info.append(info)
         self._obs_collect.append(obs[:, :, 0:3])
@@ -487,10 +643,12 @@ class CarlaEnv(gym.Env):
         try:
             obs = self._step(action)
             return obs
-        except Exception:
+        except Exception as e:
             print("Error during step, terminating episode early")
+            print(e)
         return self._obs_collect[-1], 0, True, self._history_info[-1]
 
+    @set_timeout(10)
     def _step(self, action):
         self._global_step += 1
 
@@ -525,8 +683,8 @@ class CarlaEnv(gym.Env):
 
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # sleep a little waiting for the responding from simulator
-        # if ENV_CONFIG["attention_mode"] == "None": #  or ENV_CONFIG["attention_mode"] == "hard":
-        #   time.sleep(0.05)
+        if ENV_CONFIG["attention_mode"] == "None": #  or ENV_CONFIG["attention_mode"] == "hard":
+          time.sleep(0.04)
 
         t = self.vehicle.get_transform()
         v = self.vehicle.get_velocity()
@@ -562,9 +720,10 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0 and self._global_step > 110:
+            if len(self._history_collision) > 0 and self._global_step > 90:
                 # print("collisin length", len(self._history_collision))
                 done = True
+                # self.destroy_actor()
             # elif reward < -100:
             #     done = True
 
@@ -631,14 +790,18 @@ if __name__ == '__main__':
     start = time.time()
     R = 0
     i = 0
-    while not done:
+    while True:
         i += 1
         # env.render()
         obs, reward, done, info = env.step([1, 0])
         R += reward
         print(R)
-    # env.__del__()
-    # print("{:.2f} fps".format(float(len(env._image_rgb1) / (time.time() - start))))
-    # print("++++++++++++++++++++=", min(env._d_collect))
+        if i>100:
+            env.reset()
+            i = 0
+
+    print(env.actor_list)
+    for a in env.actor_list:
+        print(a.is_alive)
+        a.destroy()
     print("{:.2f} fps".format(float(i / (time.time() - start))))
-    # print(R)

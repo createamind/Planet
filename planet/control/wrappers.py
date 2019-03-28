@@ -32,7 +32,7 @@ import numpy as np
 import skimage.transform
 import tensorflow as tf
 import time
-
+import signal
 from planet.tools import nested
 
 num_channel = 7
@@ -471,7 +471,7 @@ class ConvertTo32Bit(object):
     return np.array(reward, dtype=np.float32)
 
 
-class ExternalProcess(object):
+class ExternalProcess2(object):
   """Step environment in a separate process for lock free paralellism."""
 
   # Message types for communication via the pipe.
@@ -499,7 +499,8 @@ class ExternalProcess(object):
     self._conn, conn = multiprocessing.Pipe()
     self._process = multiprocessing.Process(
         target=self._worker, args=(constructor, conn))
-    atexit.register(self.close)
+    # atexit.register(self.close)
+    print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<atexit.register(self.close)>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     self._process.start()
     self._observ_space = None
     self._action_space = None
@@ -508,12 +509,14 @@ class ExternalProcess(object):
   def observation_space(self):
     if not self._observ_space:
       self._observ_space = self.__getattr__('observation_space')
+    print(">>>>>>>>>>>>>>>>>>>get observation space>>>>>>>>>>>>>>>>>>>>...")
     return self._observ_space
 
   @property
   def action_space(self):
     if not self._action_space:
       self._action_space = self.__getattr__('action_space')
+    print(">>>>>>>>>>>>>>>>>>>get action space>>>>>>>>>>>>>>>>>>>>...")
     return self._action_space
 
   def __getattr__(self, name):
@@ -584,6 +587,7 @@ class ExternalProcess(object):
       observation.
     """
     promise = self.call('reset')
+    print(">>>>>>>>>>>>>>>>>>>>>>>>.call subprocess reset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.")
     if blocking:
       return promise()
     else:
@@ -599,36 +603,33 @@ class ExternalProcess(object):
     Returns:
       Payload object of the message.
     """
-    # message, payload = self._conn.recv()
-    # for _ in range(2):
-    #    try:
-    #      message, payload = self._conn.recv()
-    #      break
-    #    except Exception as e:
-    #      time.sleep(0.05)
-    #      print(e, "Error during receiving")
-    #      # self.reset()
-    #    # break
 
+    # TODO:fix bug
     message = None
     fail_time = 0
     while message == None:
       try:
         message, payload = self._conn.recv()
       except Exception as e:
+        # pdf()
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>...>>>>>>>>", e, "<<<<<<<<<<<<<<<<<<<<<Error during receiving>>>>>>>")
+        # print("<<<<<<<<<<<<<<<<<<<<<message, payload>>>>>>>>>>>>>>>>>>>>>>>>>>", message, payload)
+        payload = ('reset', (), {})
         fail_time += 1
-        print(e, "Error during receiving")
+        self._conn.send((self._CALL, payload))
+        message, payload = self._conn.recv()
+
         if fail_time > 50:
           break
 
-
-    # message, payload = self._conn.recv()
     # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
       stacktrace = payload
       raise Exception(stacktrace)
     if message == self._RESULT:
       return payload
+    # if message == 2:
+    #   return  payload
     raise KeyError('Received message of unexpected type {}'.format(message))
 
   def _worker(self, constructor, conn):
@@ -641,6 +642,10 @@ class ExternalProcess(object):
     Raises:
       KeyError: When receiving a message of unknown type.
     """
+    """message
+       Out[2]: 2
+       payload
+       Out[3]: ('reset', (), {})"""
     try:
       env = constructor()
       while True:
@@ -670,3 +675,224 @@ class ExternalProcess(object):
       tf.logging.error('Error in environment process: {}'.format(stacktrace))
       conn.send((self._EXCEPTION, stacktrace))
     conn.close()
+
+def set_timeout(seconds):
+  def wrap(func):
+    def handle(signum, frame):
+      raise RuntimeError
+
+    def to_do(*args, **kwargs):
+      signal.signal(signal.SIGALRM, handle)
+      signal.alarm(seconds)
+      r = func(*args, **kwargs)
+      signal.alarm(0)
+      return r
+
+    return to_do
+
+  return wrap
+
+
+class ExternalProcess(object):
+
+  _conn = None
+  _process = None
+  conn = None
+
+  """Step environment in a separate process for lock free paralellism."""
+
+  # Message types for communication via the pipe.
+  _ACCESS = 1   # for getting a non-existing attribute
+  _CALL = 2
+  _RESULT = 3
+  _EXCEPTION = 4
+  _CLOSE = 5
+
+  def __init__(self, constructor):
+    """Step environment in a separate process for lock free parallelism.
+
+    The environment will be created in the external process by calling the
+    specified callable. This can be an environment class, or a function
+    creating the environment and potentially wrapping it. The returned
+    environment should not access global variables.
+
+    Args:
+      constructor: Callable that creates and returns an OpenAI gym environment.
+
+    Attributes:
+      observation_space: The cached observation space of the environment.
+      action_space: The cached action space of the environment.
+    """
+    if ExternalProcess._process == None:
+      ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
+      ExternalProcess._process = multiprocessing.Process(
+          target=self._worker, args=(constructor, ExternalProcess.conn))   # child process
+      ExternalProcess._process.start()
+
+    atexit.register(self.close)   # self.close() is automatically executed upon normal interpreter termination.
+    # ExternalProcess._process.start()
+    self._observ_space = None
+    self._action_space = None
+
+  @property
+  def observation_space(self):
+    if not self._observ_space:
+      self._observ_space = self.__getattr__('observation_space')
+    return self._observ_space
+
+  @property
+  def action_space(self):
+    if not self._action_space:
+      self._action_space = self.__getattr__('action_space')
+    return self._action_space
+
+  def __getattr__(self, name):  # when getting a non-existing attribute
+    """Request an attribute from the environment.
+
+    Note that this involves communication with the external process, so it can
+    be slow.
+
+    Args:
+      name: Attribute to access.
+
+    Returns:
+      Value of the attribute.
+    """
+    ExternalProcess._conn.send((self._ACCESS, name))
+    return self._receive()
+
+  def call(self, name, *args, **kwargs):
+    """Asynchronously call a method of the external environment.
+
+    Args:
+      name: Name of the method to call.
+      *args: Positional arguments to forward to the method.
+      **kwargs: Keyword arguments to forward to the method.
+
+    Returns:
+      Promise object that blocks and provides the return value when called.
+    """
+    payload = name, args, kwargs
+    ExternalProcess._conn.send((self._CALL, payload))
+    return self._receive
+
+  def close(self):
+    """Send a close message to the external process and join it."""
+    try:
+      ExternalProcess._conn.send((self._CLOSE, None))
+      ExternalProcess._conn.close()  # close the connection.
+    except IOError:
+      # The connection was already closed.
+      pass
+    ExternalProcess._process.join()      # the parent process is blocked until self._process is done.
+
+  def step(self, action, blocking=True):
+    """Step the environment.
+
+    Args:
+      action: The action to apply to the environment.
+      blocking: Whether to wait for the result.
+
+    Returns:
+      Transition tuple when blocking, otherwise callable that returns the
+      transition tuple.
+    """
+    promise = self.call('step', action)  # self._receive is returned.
+    if blocking:
+      return promise()
+    else:
+      return promise
+
+  def reset(self, blocking=True):
+    """Reset the environment.
+
+    Args:
+      blocking: Whether to wait for the result.
+
+    Returns:
+      New observation when blocking, otherwise callable that returns the new
+      observation.
+    """
+    promise = self.call('reset')
+    if blocking:
+      return promise()
+    else:
+      return promise
+
+  # def _receive(self):
+  #
+  #
+  #
+  #
+  # @set_timeout(10)
+  def _receive(self):
+    """Wait for a message from the worker process and return its payload.
+
+    Raises:
+      Exception: An exception was raised inside the worker process.
+      KeyError: The received message is of an unknown type.
+
+    Returns:
+      Payload object of the message.
+    """
+
+    message, payload = ExternalProcess._conn.recv()    # Blocks until there is something to receive.
+    # Re-raise exceptions in the main process.
+    if message == self._EXCEPTION:
+      stacktrace = payload
+      raise Exception(stacktrace)
+    if message == self._RESULT:
+      return payload
+    raise KeyError('Received message of unexpected type {}'.format(message))
+
+  def _worker(self, constructor, conn):  # A new process is created.
+    """The process waits for actions and sends back environment results.
+
+    Args:
+      constructor: Constructor for the OpenAI Gym environment.
+      conn: Connection for communication to the main process.
+
+    Raises:
+      KeyError: When receiving a message of unknown type.
+    """
+    try:
+      env = constructor()
+      while True:         # env main loop
+        try:
+          # env.render()    # for breakout
+
+          # Only block for short times to have keyboard exceptions be raised.
+          if not conn.poll(0.1):
+            continue
+          message, payload = conn.recv()
+        except (EOFError, KeyboardInterrupt):
+          break
+        if message == self._ACCESS:
+          name = payload
+          result = getattr(env, name)
+          conn.send((self._RESULT, result))
+          continue
+        if message == self._CALL:
+          name, args, kwargs = payload
+
+          result = getattr(env, name)(*args, **kwargs)
+          conn.send((self._RESULT, result))
+
+          # # resending step for carla...
+          # if name == 'step':
+          #   # print('start...')
+          #   while not conn.poll():
+          #     # print('resending step')
+          #     env._env._env._env._env.step(*args)
+
+          continue
+        if message == self._CLOSE:
+          assert payload is None
+          break
+        raise KeyError('Received message of unknown type {}'.format(message))
+    except Exception:
+      stacktrace = ''.join(traceback.format_exception(*sys.exc_info()))
+      tf.logging.error('Error in environment process: {}'.format(stacktrace))
+      conn.send((self._EXCEPTION, stacktrace))
+    conn.close()
+
