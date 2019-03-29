@@ -135,6 +135,8 @@ atexit.register(cleanup)
 #     return wrap
 import threading
 
+COUNT = 0
+
 def set_timeout(seconds):
     def wrapper(func):
         def __wrapper(*args):
@@ -147,6 +149,22 @@ def set_timeout(seconds):
                 raise Exception('Function execution timeout')
         return __wrapper
     return wrapper
+
+
+
+state = 'running'
+
+def monitor():
+    while True:
+        if state == 'running':
+            tell_client()
+            time.sleep(1)  # to prevent too much happening here
+
+threading.Thread(target=monitor).start()
+
+while state == 'running':
+    receive_data()
+
 
 
 class CarlaEnv(gym.Env):
@@ -372,9 +390,36 @@ class CarlaEnv(gym.Env):
 
             i += 1
 
-            time.sleep(1005)
+            # time.sleep(1005)
             print("BBBBBBBBBBBBBBBBUUUUUUUUUUUUUUUUUUGGGGGGGGGGGGGGGGGGGGGGGGG")
-            self.camera_rgb1 = world.try_spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            # # TODO fix bad weak_ptr()
+
+            def func(camera_rgb1, camera_transform, vehicle):
+                # global COUNT
+                # COUNT += 1
+                # if COUNT % 10 == 0:
+                while True:
+                    pass
+                self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=vehicle)
+                return self.camera_rgb1
+            t = threading.Thread(target=func, args=(camera_rgb1, camera_transform, self.vehicle))
+            t.setDaemon(True)
+            t.start()
+            t.join(5)
+            print('-' * 400)
+            print('-' * 400)
+
+            print('HERE!!!!!', t.is_alive())
+            if t.is_alive():
+                print('CKY\n' * 100)
+                exit()
+            print('-' * 400)
+            print('-' * 400)
+
+
+
+
+            # self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
                   self.camera_rgb1.id)
             # print("camera_id", self.camera_rgb1.id)
