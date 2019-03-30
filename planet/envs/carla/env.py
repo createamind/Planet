@@ -135,55 +135,55 @@ atexit.register(cleanup)
 #     return wrap
 import threading
 
+# COUNT = 0
+#
+# def set_timeout(seconds):
+#     def wrapper(func):
+#         def __wrapper(*args):
+#             t = threading.Thread(target=func, args=args)
+#             t.setDaemon(True)
+#             t.start()
+#             t.join(timeout=seconds)
+#             if t.is_alive():
+#                 print('time is out.')
+#                 raise Exception('Function execution timeout')
+#         return __wrapper
+#     return wrapper
+#
+#
+#
+# def monitor():
+#     cnt = 0
+#     with open('/tmp/hahaha.ha', 'w') as f:
+#         f.write('0')
+#     while True:
+#         with open('/tmp/hahaha.ha', 'r') as f:
+#             a = int(f.read())
+#             if a == 0:
+#                 cnt += 1
+#                 print('NO RESPOND FOR ' + str(cnt) + ' Seconds!')
+#                 if cnt > 100:
+#                     import os
+#                     import signal
+#                     for pgid in live_carla_processes:
+#                         try:
+#                             #os.killpg(pgid, signal.SIGKILL)
+#                             print(pgid)
+#                             os.killpg(pgid, signal.SIGTERM)
+#                             os.killpg(pgid, signal.SIGKILL)
+#                         except:
+#                             pass
+#                     #os.kill(os.getpid(), signal.SIGTERM)
+#             else:
+#                 cnt = 0
+#         with open('/tmp/hahaha.ha', 'w') as f:
+#             f.write('0')
+#         time.sleep(1)  # to prevent too much happening here
+#
+# threading.Thread(target=monitor).start()
+
+PID = os.getpid()
 COUNT = 0
-
-def set_timeout(seconds):
-    def wrapper(func):
-        def __wrapper(*args):
-            t = threading.Thread(target=func, args=args)
-            t.setDaemon(True)
-            t.start()
-            t.join(timeout=seconds)
-            if t.is_alive():
-                print('time is out.')
-                raise Exception('Function execution timeout')
-        return __wrapper
-    return wrapper
-
-
-
-def monitor():
-    cnt = 0
-    with open('/tmp/hahaha.ha', 'w') as f:
-        f.write('0')
-    while True:
-        with open('/tmp/hahaha.ha', 'r') as f:
-            a = int(f.read())
-            if a == 0:
-                cnt += 1
-                print('NO RESPOND FOR ' + str(cnt) + ' Seconds!')
-                if cnt > 100:
-                    import os
-                    import signal
-                    for pgid in live_carla_processes:
-                        try:
-                            #os.killpg(pgid, signal.SIGKILL)
-                            print(pgid)
-                            os.killpg(pgid, signal.SIGTERM)
-                            os.killpg(pgid, signal.SIGKILL)
-                        except:
-                            pass
-                    #os.kill(os.getpid(), signal.SIGTERM)
-            else:
-                cnt = 0
-        with open('/tmp/hahaha.ha', 'w') as f:
-            f.write('0')
-        time.sleep(1)  # to prevent too much happening here
-
-threading.Thread(target=monitor).start()
-
-
-
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
         self.config = config
@@ -266,9 +266,10 @@ class CarlaEnv(gym.Env):
             preexec_fn=os.setsid,
             stdout=open(os.devnull, "w"))
         live_carla_processes.add(os.getpgid(self.server_process.pid))
+        print(live_carla_processes,"live_carla_processes\n"*20)
         time.sleep(6)  # wait for world get ready
-
-    @set_timeout(10)
+    #
+    # @set_timeout(10)
     def _restart(self):
         """restart world and add sensors"""
         # self.init_server()
@@ -410,14 +411,15 @@ class CarlaEnv(gym.Env):
             # time.sleep(1005)
             print("BBBBBBBBBBBBBBBBUUUUUUUUUUUUUUUUUUGGGGGGGGGGGGGGGGGGGGGGGGG")
             # # TODO fix bad weak_ptr()
-
-            with open('/tmp/hahaha.ha', 'w') as f:
-                f.write('1')
+            #
+            # with open('/tmp/hahaha.ha', 'w') as f:
+            #     f.write('1')
 
             def func(camera_rgb1, camera_transform, vehicle):
-                # global COUNT
-                # COUNT += 1
-                # if COUNT % 10 == 0:
+                global COUNT
+                COUNT += 1
+                if COUNT % 2 == 0:
+                    time.sleep(7)
                 self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=vehicle)
                 return self.camera_rgb1
             t = threading.Thread(target=func, args=(camera_rgb1, camera_transform, self.vehicle))
@@ -429,8 +431,11 @@ class CarlaEnv(gym.Env):
 
             print('HERE!!!!!', t.is_alive())
             if t.is_alive():
-                print('CKY\n' * 100)
-                exit()
+                print('CKY\n' * 10)
+                print('kill')
+                os.kill(os.getpid(), 9)  # kill worker
+                print('kill')
+                print('CKY\n' * 10)
             print('-' * 400)
             print('-' * 400)
 
@@ -441,10 +446,6 @@ class CarlaEnv(gym.Env):
             print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
                   self.camera_rgb1.id)
             # print("camera_id", self.camera_rgb1.id)
-
-
-
-
 
             i += 1
             print(i, time.time()) # 36
