@@ -162,18 +162,21 @@ def monitor():
             if a == 0:
                 cnt += 1
                 print('NO RESPOND FOR ' + str(cnt) + ' Seconds!')
-                if cnt > 100:
+                if cnt > 80:
                     import os
                     import signal
-                    for pgid in live_carla_processes:
-                        try:
-                            #os.killpg(pgid, signal.SIGKILL)
-                            print(pgid)
-                            os.killpg(pgid, signal.SIGTERM)
-                            os.killpg(pgid, signal.SIGKILL)
-                        except:
-                            pass
-                    #os.kill(os.getpid(), signal.SIGTERM)
+                    # for pgid in live_carla_processes:
+                    #     try:
+                    #         #os.killpg(pgid, signal.SIGKILL)
+                    #         print(pgid)
+                    #         os.killpg(pgid, signal.SIGTERM)
+                    #         os.killpg(pgid, signal.SIGKILL)
+                    #     except:
+                    #         pass
+                    with open('/tmp/_worker_pid.txt', 'r') as f:
+                        pid = int(f.read())
+                    os.kill(pid, signal.SIGKILL)
+                    print("kill %s" % str(pid))
             else:
                 cnt = 0
         with open('/tmp/hahaha.ha', 'w') as f:
@@ -407,7 +410,6 @@ class CarlaEnv(gym.Env):
 
             i += 1
 
-            # time.sleep(1005)
             print("BBBBBBBBBBBBBBBBUUUUUUUUUUUUUUUUUUGGGGGGGGGGGGGGGGGGGGGGGGG")
             # # TODO fix bad weak_ptr()
 
@@ -415,24 +417,25 @@ class CarlaEnv(gym.Env):
                 f.write('1')
 
             def func(camera_rgb1, camera_transform, vehicle):
-                # global COUNT
-                # COUNT += 1
-                # if COUNT % 10 == 0:
+                global COUNT
+                COUNT += 1
+                if COUNT % 2 == 0:
+                    time.sleep(60)
                 self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=vehicle)
                 return self.camera_rgb1
             t = threading.Thread(target=func, args=(camera_rgb1, camera_transform, self.vehicle))
             t.setDaemon(True)
             t.start()
             t.join(5)
-            print('-' * 400)
-            print('-' * 400)
-
-            print('HERE!!!!!', t.is_alive())
-            if t.is_alive():
-                print('CKY\n' * 100)
-                exit()
-            print('-' * 400)
-            print('-' * 400)
+            # print('-' * 400)
+            # print('-' * 400)
+            #
+            # print('HERE!!!!!', t.is_alive())
+            # if t.is_alive():
+            #     print('CKY\n' * 100)
+            #     exit()
+            # print('-' * 400)
+            # print('-' * 400)
 
 
 

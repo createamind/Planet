@@ -675,22 +675,22 @@ class ExternalProcess2(object):
       tf.logging.error('Error in environment process: {}'.format(stacktrace))
       conn.send((self._EXCEPTION, stacktrace))
     conn.close()
-
-def set_timeout(seconds):
-  def wrap(func):
-    def handle(signum, frame):
-      raise RuntimeError
-
-    def to_do(*args, **kwargs):
-      signal.signal(signal.SIGALRM, handle)
-      signal.alarm(seconds)
-      r = func(*args, **kwargs)
-      signal.alarm(0)
-      return r
-
-    return to_do
-
-  return wrap
+#
+# def set_timeout(seconds):
+#   def wrap(func):
+#     def handle(signum, frame):
+#       raise RuntimeError
+#
+#     def to_do(*args, **kwargs):
+#       signal.signal(signal.SIGALRM, handle)
+#       signal.alarm(seconds)
+#       r = func(*args, **kwargs)
+#       signal.alarm(0)
+#       return r
+#
+#     return to_do
+#
+#   return wrap
 
 
 class ExternalProcess(object):
@@ -733,7 +733,7 @@ class ExternalProcess(object):
     # ExternalProcess._process.start()
     self._observ_space = None
     self._action_space = None
-
+    self.constructor = constructor
   @property
   def observation_space(self):
     if not self._observ_space:
@@ -774,6 +774,7 @@ class ExternalProcess(object):
     """
     payload = name, args, kwargs
     ExternalProcess._conn.send((self._CALL, payload))
+    print((str(os.getpid()) + "shit\n") * 100)
     return self._receive
 
   def close(self):
@@ -835,9 +836,20 @@ class ExternalProcess(object):
     Returns:
       Payload object of the message.
     """
-
-    message, payload = ExternalProcess._conn.recv()    # Blocks until there is something to receive.
-    # Re-raise exceptions in the main process.
+    # if worker get blocked we will get into trouble
+    print('++++++++++++++==++++ExternalProcess._process.is_alive()\n'*10, ExternalProcess._process.is_alive())
+    if ExternalProcess._conn.poll(80):
+      message, payload = ExternalProcess._conn.recv()    # Blocks until there is something to receive.
+    else:
+      ExternalProcess._conn.close()
+      ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
+      ExternalProcess._process = multiprocessing.Process(
+          target=self._worker, args=(self.constructor, ExternalProcess.conn))   # child process
+      ExternalProcess._process.start()
+      payload = ('reset',)
+      ExternalProcess._conn.send((self._CALL, payload))
+      message, payload = ExternalProcess._conn.recv()
+      # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
       stacktrace = payload
       raise Exception(stacktrace)
@@ -857,6 +869,9 @@ class ExternalProcess(object):
     """
     try:
       env = constructor()
+      with open('/tmp/_worker_pid.txt', 'w') as f:
+        f.write(str(os.getpid()))
+
       while True:         # env main loop
         try:
           # env.render()    # for breakout
@@ -875,8 +890,9 @@ class ExternalProcess(object):
         if message == self._CALL:
           name, args, kwargs = payload
 
-          result = getattr(env, name)(*args, **kwargs)
-          conn.send((self._RESULT, result))
+          result = getattr(env, name)(*args, **kwargs)  # bug in carla caused block at here
+          conn.send((self._RESULT, result))             # so we have nothing to send but waiting for result forever
+          # if that is the case we will kill worker
 
           # # resending step for carla...
           # if name == 'step':
