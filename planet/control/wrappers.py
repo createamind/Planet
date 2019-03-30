@@ -774,7 +774,7 @@ class ExternalProcess(object):
     """
     payload = name, args, kwargs
     ExternalProcess._conn.send((self._CALL, payload))
-    print((str(os.getpid()) + "main pid\n"))
+    # print((str(os.getpid()) + "main pid\n"))
     return self._receive
 
   def close(self):
@@ -832,13 +832,14 @@ class ExternalProcess(object):
       Payload object of the message.
     """
     # if worker get blocked we will get into trouble
-    print('++++++++++++++==++++ExternalProcess._process.is_alive()\n'*10, ExternalProcess._process.is_alive())
-    if ExternalProcess._conn.poll(20):
+    # print('++++++++++++++==++++ExternalProcess._process.is_alive()\n'*10, ExternalProcess._process.is_alive())
+    if ExternalProcess._conn.poll(21):
       message, payload = ExternalProcess._conn.recv()    # Blocks until there is something to receive.
     else:
-      with open('/tmp/_carla_pid.txt', 'r') as f:
-          pgid = int(f.read())
+      # with open('/tmp/_carla_pid.txt', 'r') as f:
+      #     pgid = int(f.read())
       # os.killpg(pgid, signal.SIGKILL)  # kill carla server
+      pid = np.loadtxt('/tmp/pid_test.txt', dtype=int)  # parent pid
 
       def stop(pid):
         parent = psutil.Process(pid)
@@ -848,9 +849,14 @@ class ExternalProcess(object):
       #
       # stop(pgid)
       print("server is block\n"*20)
-      # self.close()
-      ExternalProcess._conn.close()
-      stop(pgid)
+      self.close()
+      # ExternalProcess._conn.close()
+      for p in pid:
+        try:
+          print(p, '<<pid'*20)
+          # stop(p)
+        except:
+          pass
       # os.kill(pgid, 9)  # kill carla server
       # ExternalProcess._conn.close()
       ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
@@ -861,6 +867,11 @@ class ExternalProcess(object):
       ExternalProcess._conn.send((self._CALL, payload))
       message, payload = ExternalProcess._conn.recv()
       # Re-raise exceptions in the main process.
+
+
+
+
+
     if message == self._EXCEPTION:
       stacktrace = payload
       raise Exception(stacktrace)

@@ -454,8 +454,9 @@ class CarlaEnv(gym.Env):
             global COUNT
             COUNT += 1
             if COUNT % 2 == 0:
+                # print(1/0)
                 time.sleep(22)
-            print(1/0)
+            # print(1/0)
             self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
                   self.camera_rgb1.id)
