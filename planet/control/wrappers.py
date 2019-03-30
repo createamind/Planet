@@ -850,7 +850,7 @@ class ExternalProcess(object):
       print("server is block\n"*20)
       # self.close()
       ExternalProcess._conn.close()
-      stop(pgid)
+      # stop(pgid)
       # os.kill(pgid, 9)  # kill carla server
       # ExternalProcess._conn.close()
       ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
