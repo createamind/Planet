@@ -25,7 +25,7 @@ import os
 import sys
 import traceback
 import uuid
-
+import psutil
 import gym
 import gym.spaces
 import numpy as np
@@ -774,7 +774,7 @@ class ExternalProcess(object):
     """
     payload = name, args, kwargs
     ExternalProcess._conn.send((self._CALL, payload))
-    print((str(os.getpid()) + "shit\n") * 100)
+    print((str(os.getpid()) + "main pid\n"))
     return self._receive
 
   def close(self):
@@ -820,12 +820,7 @@ class ExternalProcess(object):
     else:
       return promise
 
-  # def _receive(self):
-  #
-  #
-  #
-  #
-  # @set_timeout(10)
+
   def _receive(self):
     """Wait for a message from the worker process and return its payload.
 
@@ -838,15 +833,31 @@ class ExternalProcess(object):
     """
     # if worker get blocked we will get into trouble
     print('++++++++++++++==++++ExternalProcess._process.is_alive()\n'*10, ExternalProcess._process.is_alive())
-    if ExternalProcess._conn.poll(80):
+    if ExternalProcess._conn.poll(20):
       message, payload = ExternalProcess._conn.recv()    # Blocks until there is something to receive.
     else:
+      with open('/tmp/_carla_pid.txt', 'r') as f:
+          pgid = int(f.read())
+      # os.killpg(pgid, signal.SIGKILL)  # kill carla server
+
+      def stop(pid):
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+          child.kill()
+        parent.kill()
+      #
+      # stop(pgid)
+      print("server is block\n"*20)
+      # self.close()
       ExternalProcess._conn.close()
+      stop(pgid)
+      # os.kill(pgid, 9)  # kill carla server
+      # ExternalProcess._conn.close()
       ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
       ExternalProcess._process = multiprocessing.Process(
           target=self._worker, args=(self.constructor, ExternalProcess.conn))   # child process
       ExternalProcess._process.start()
-      payload = ('reset',)
+      payload = ('reset', (), {})
       ExternalProcess._conn.send((self._CALL, payload))
       message, payload = ExternalProcess._conn.recv()
       # Re-raise exceptions in the main process.
