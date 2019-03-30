@@ -765,6 +765,13 @@ class ExternalProcess(object):
     return self._receive()
 
   def call(self, name, *args, **kwargs):
+    try:
+      return self._call(name, *args, **kwargs)
+    except:
+      self._restart()
+
+  # @set_timeout(10)
+  def _call(self, name, *args, **kwargs):
     """Asynchronously call a method of the external environment.
 
     Args:
