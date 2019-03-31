@@ -114,6 +114,8 @@ def cleanup():
         for child in parent.children(recursive=True):
             child.kill()
         parent.kill()
+
+    live_carla_processes = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
     print("Killing live carla processes", live_carla_processes)
     for pgid in live_carla_processes:
         try:
@@ -280,11 +282,13 @@ class CarlaEnv(gym.Env):
         live_carla_processes.add(self.server_process.pid)
         # print(live_carla_processes)
         # live_carla_processes.add(os.getpgid(self.server_process.pid))
-        np.savetxt('/tmp/pid_test.txt', np.array([x for x in live_carla_processes]), fmt='%d')
+        pre_pid = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
+        pid = np.array([x for x in live_carla_processes])
+        np.savetxt('/tmp/pid_test.txt', np.concatenate([pre_pid, pid]), fmt='%d')
         # with open('/tmp/_carla_pid.txt', 'w') as f:
         #     f.write(str(self.server_process.pid))
             # f.write(str(os.getpgid(self.server_process.pid)))   # write carla server pid into file
-        time.sleep(10)  # wait for world get ready
+        time.sleep(12)  # wait for world get ready
 
     # @set_timeout(10)
     def _restart(self):
@@ -319,7 +323,7 @@ class CarlaEnv(gym.Env):
                 connect_fail_times += 1
                 print("Error connecting: {}, attempt {}".format(e, connect_fail_times))
                 time.sleep(2)
-            if connect_fail_times > 15:
+            if connect_fail_times > 5:
                 break
         i += 1
         print(i, time.time())

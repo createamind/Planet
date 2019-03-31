@@ -839,8 +839,8 @@ class ExternalProcess(object):
       # with open('/tmp/_carla_pid.txt', 'r') as f:
       #     pgid = int(f.read())
       # os.killpg(pgid, signal.SIGKILL)  # kill carla server
-      pid = np.loadtxt('/tmp/pid_test.txt', dtype=int)  # parent pid
-
+      # pid = np.loadtxt('/tmp/pid_test.txt', dtype=int)  # parent pid
+      pid = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
       def stop(pid):
         parent = psutil.Process(pid)
         for child in parent.children(recursive=True):
@@ -848,17 +848,18 @@ class ExternalProcess(object):
         parent.kill()
       #
       # stop(pgid)
-      print("server is block\n"*20)
-      self.close()
+      print("server is block\n"*200)
+      # self.close()
       # ExternalProcess._conn.close()
       for p in pid:
         try:
-          print(p, '<<pid'*20)
-          # stop(p)
+          # print(p, '<<pid'*20)
+          stop(int(p))
         except:
           pass
       # os.kill(pgid, 9)  # kill carla server
-      # ExternalProcess._conn.close()
+      # print(pid, '<<pid' * 20)
+      ExternalProcess._conn.close()
       ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
       ExternalProcess._process = multiprocessing.Process(
           target=self._worker, args=(self.constructor, ExternalProcess.conn))   # child process
