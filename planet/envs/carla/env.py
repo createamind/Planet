@@ -17,6 +17,7 @@ import math
 import numpy as np
 import gym
 import atexit
+# from datetime import datetime
 from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
 import os
@@ -455,11 +456,11 @@ class CarlaEnv(gym.Env):
             # #     exit()
             # # print('-' * 400)
             # # print('-' * 400)
-            global COUNT
-            COUNT += 1
-            if COUNT % 2 == 0:
-                # print(1/0)
-                time.sleep(22)
+            # global COUNT
+            # COUNT += 1
+            # if COUNT % 2 == 0:
+            #     # print(1/0)
+            #     time.sleep(22)
             # print(1/0)
             self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
@@ -531,10 +532,8 @@ class CarlaEnv(gym.Env):
                 obs = self._reset()
                 return obs
             except Exception as e:
-                f = open("/home/gu/error_log %s.txt" % str(time.time()), "w")
-                # f.write(str(e))
-                f.write('============Error====================, %s' % str(e))
-                f.close()
+                with open("/home/gu/error_log %s.txt" % str(datetime.datetime.now()), "w") as f:
+                  f.write('============Error====================, %s' % str(e))
                 cleanup()
                 self.init_server()
                 # self.destroy_actor()
@@ -812,7 +811,7 @@ class CarlaEnv(gym.Env):
         # early stop
         done = False
         if ENV_CONFIG["early_stop"]:
-            if len(self._history_collision) > 0 and self._global_step > 90:
+            if len(self._history_collision) > 0 and self._global_step > 60:
                 # print("collisin length", len(self._history_collision))
                 done = True
                 # self.destroy_actor()

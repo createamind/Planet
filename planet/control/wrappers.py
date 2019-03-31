@@ -34,7 +34,7 @@ import tensorflow as tf
 import time
 import signal
 from planet.tools import nested
-
+# from datetime import datetime
 num_channel = 7
 class ObservationDict(object):
 
@@ -840,6 +840,9 @@ class ExternalProcess(object):
       #     pgid = int(f.read())
       # os.killpg(pgid, signal.SIGKILL)  # kill carla server
       # pid = np.loadtxt('/tmp/pid_test.txt', dtype=int)  # parent pid
+      with open("/home/gu/bad_weak_ptr_error_log %s.txt" % str(datetime.datetime.now()), "w") as f:
+      # f.write(str(e))
+        f.write('============Error=====bad_weak_ptr()===============')
       pid = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
       def stop(pid):
         parent = psutil.Process(pid)

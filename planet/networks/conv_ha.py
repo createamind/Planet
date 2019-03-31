@@ -155,7 +155,8 @@ class DenseNet():
 
 
 #
-large_net = False
+large_net = True
+
 if not large_net:
     def encoder(obs):
     #   """Extract deterministic features from an observation."""
