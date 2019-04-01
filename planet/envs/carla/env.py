@@ -24,88 +24,14 @@ import os
 import signal
 from datetime import timedelta
 import psutil
-
+from planet import ENV_CONFIG
+from planet import PID_FILE_NAME
 # Default environment configuration
+import threading
 """ default is rgb 
     stack for gray depth segmentation stack together
     encode for encode measurement in forth channel """
 
-
-# 2000 soft 3000 hard
-# TODO add different config file
-ENV_CONFIG1 = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 2,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG2 = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 4,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG3 = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 4,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG4 = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "soft",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 5,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG5 = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "hard",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 5,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG_test = {
-    "x_res": 96,
-    "y_res": 96,
-    "image_mode": "encode",
-    "host": "localhost",
-    "early_stop": True,        # if we use planet this has to be False
-    "attention_mode": "None",  # hard for dot product soft for adding noise None for regular
-    "attention_channel": 3,    # int, the number of channel for we use attention mask on it, 3,6 is preferred
-    "action_dim": 2,           # 4 for one point attention, 5 for control view field
-}
-
-
-ENV_CONFIG = ENV_CONFIG1
 live_carla_processes = set()
 
 
@@ -126,78 +52,9 @@ def cleanup():
         except:
             pass
 
-
-
 atexit.register(cleanup)
 
-
-# def set_timeout(seconds):
-#     def wrap(func):
-#         def handle(signum, frame):
-#             raise RuntimeError
-#
-#         def to_do(*args, **kwargs):
-#             signal.signal(signal.SIGALRM, handle)
-#             signal.alarm(seconds)
-#             r = func(*args, **kwargs)
-#             signal.alarm(0)
-#             return r
-#
-#         return to_do
-#     return wrap
-import threading
-
 COUNT = 0
-#
-# def set_timeout(seconds):
-#     def wrapper(func):
-#         def __wrapper(*args):
-#             t = threading.Thread(target=func, args=args)
-#             t.setDaemon(True)
-#             t.start()
-#             t.join(timeout=seconds)
-#             if t.is_alive():
-#                 print('time is out.')
-#                 raise Exception('Function execution timeout')
-#         return __wrapper
-#     return wrapper
-#
-
-
-# def monitor():
-#     cnt = 0
-#     with open('/tmp/hahaha.ha', 'w') as f:
-#         f.write('0')
-#     while True:
-#         with open('/tmp/hahaha.ha', 'r') as f:
-#             a = int(f.read())
-#             if a == 0:
-#                 cnt += 1
-#                 print('NO RESPOND FOR ' + str(cnt) + ' Seconds!')
-#                 if cnt > 78:
-#                     import os
-#                     import signal
-#                     # for pgid in live_carla_processes:
-#                     #     try:
-#                     #         #os.killpg(pgid, signal.SIGKILL)
-#                     #         print(pgid)
-#                     #         os.killpg(pgid, signal.SIGTERM)
-#                     #         os.killpg(pgid, signal.SIGKILL)
-#                     #     except:
-#                     #         pass
-#                     with open('/tmp/_worker_pid.txt', 'r') as f:
-#                         pid = int(f.read())
-#                     os.kill(pid, signal.SIGKILL)
-#                     print("kill %s" % str(pid))
-#             else:
-#                 cnt = 0
-#         with open('/tmp/hahaha.ha', 'w') as f:
-#             f.write('0')
-#         time.sleep(1)  # to prevent too much happening here
-#
-# threading.Thread(target=monitor).start()
-
-
 
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
@@ -275,7 +132,7 @@ class CarlaEnv(gym.Env):
         self.server_port = random.randint(10000, 60000)
         self.server_process = subprocess.Popen(
             [
-                "/home/gu/carla94/CarlaUE4.sh", "-benchmark", '-fps=20'
+                "/home/gu/Downloads/carla94/CarlaUE4.sh", "-benchmark", '-fps=20'
                 "-ResX=400", "-ResY=300", "-carla-port={}".format(self.server_port)
             ],
             preexec_fn=os.setsid,
@@ -295,211 +152,66 @@ class CarlaEnv(gym.Env):
     def _restart(self):
         """restart world and add sensors"""
         # self.init_server()
-        i = 0
-        i += 1
-        print(i, time.time())
         connect_fail_times = 0
-        i += 1
-        print(i, time.time())
         self.world = None
-        i += 1
-        print(i, time.time())
         while self.world is None:
             try:
-                i += 1
-                print(i, time.time())
                 self.client = carla.Client(self.config["host"], self.server_port)
-                i += 1
-                print(i, time.time())
                 self.client.set_timeout(2.0)
-                i += 1
-                print(i, time.time())
                 self.world = self.client.get_world()
-                i += 1
-                print(i, time.time())
                 self.map = self.world.get_map()
             except Exception as e:
-                i += 1
-                print(i, time.time())
                 connect_fail_times += 1
                 print("Error connecting: {}, attempt {}".format(e, connect_fail_times))
                 time.sleep(2)
             if connect_fail_times > 5:
                 break
-        i += 1
-        print(i, time.time())
+
         world = self.world
-        i += 1
-        print(i, time.time())
         self._global_step = 0
         # actors
-        i += 1
-        print(i, time.time())
         self.actor_list = [] # save actor list for destroying them after finish
-        i += 1
-        print(i, time.time())
         self.vehicle = None
-        i += 1
-        print(i, time.time())
         self.collision_sensor = None
-        i += 1
-        print(i, time.time())
         self.invasion_sensor = None
-        # states and data
-        i += 1
-        print(i, time.time())
         self._history_info = []       # info history
-        i += 1
-        print(i, time.time())
         self._history_collision = []  # collision history
-        i += 1
-        print(i, time.time())
         self._history_invasion = []   # invasion history
-        i += 1
-        print(i, time.time())
         self._image_rgb1 = []         # save a list of rgb image
-        i += 1
-        print(i, time.time())
         self._image_rgb2 = []
-        i += 1
-        print(i, time.time())
         self._history_waypoint = []
-
-        # destroy actors in the world before we start new episode
-        i += 1
-        print(i, time.time())
+        
         for a in self.world.get_actors().filter('vehicle.*'):
             # print(a)
             try:
-                # i += 1
-                # print(i, time.time(), "destroy vehicle", a)
                 a.destroy()
-                # time.sleep(0.01)
             except:
                 pass
         for a in self.world.get_actors().filter('sensor.*'):
-            # print(a)
             try:
-                # i += 1
-                # print(i, time.time(), "destroy sensor", a)
                 a.destroy()
-                # time.sleep(0.01)
             except:
                 pass
 
         try:
-            i += 1
-            print(i, time.time())
             bp_library = world.get_blueprint_library()
-
-            # setup vehicle
-            i += 1
-            print(i, time.time())
             spawn_point = random.choice(world.get_map().get_spawn_points())
-            i += 1
-            print(i, time.time())
             bp_vehicle = bp_library.find('vehicle.lincoln.mkz2017')
-            i += 1
-            print(i, time.time())
             bp_vehicle.set_attribute('role_name', 'hero')
-            i += 1
-            print(i, time.time())
-
             self.vehicle = world.try_spawn_actor(bp_vehicle, spawn_point)
-            print("spawn vehicle_id<<<<<<<<<<<<<<<<<<", self.vehicle.id)
-            i += 1
-            print(i, time.time())  # 26
             self.actor_list.append(self.vehicle)
-
-            # setup rgb camera1
-            i += 1
-            print(i, time.time())
             camera_transform = carla.Transform(carla.Location(x=1, y=0, z=2))
-            i += 1
-            print(i, time.time())
             camera_rgb1 = bp_library.find('sensor.camera.rgb')
-            i += 1
-            print(i, time.time())
             camera_rgb1.set_attribute('fov', '120')
-            i += 1
-            print(i, time.time())
             camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
-            i += 1
-            print(i, time.time())  # 31
             camera_rgb1.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
-
-            i += 1
-
-            print("BBBBBBBBBBBBBBBBUUUUUUUUUUUUUUUUUUGGGGGGGGGGGGGGGGGGGGGGGGG")
-            # # TODO fix bad weak_ptr()
-
-            # with open('/tmp/hahaha.ha', 'w') as f:
-            #     f.write('1')
-            #
-            # def func(camera_rgb1, camera_transform, vehicle):
-            #     global COUNT
-            #     COUNT += 1
-            #     if COUNT % 2 == 0:
-            #         time.sleep(60)
-            #     self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=vehicle)
-            #     return self.camera_rgb1
-            # t = threading.Thread(target=func, args=(camera_rgb1, camera_transform, self.vehicle))
-            # t.setDaemon(True)
-            # t.start()
-            # t.join(5)
-            # # print('-' * 400)
-            # # print('-' * 400)
-            # #
-            # # print('HERE!!!!!', t.is_alive())
-            # # if t.is_alive():
-            # #     print('CKY\n' * 100)
-            # #     exit()
-            # # print('-' * 400)
-            # # print('-' * 400)
-            # global COUNT
-            # COUNT += 1
-            # if COUNT % 2 == 0:
-            #     # print(1/0)
-            #     time.sleep(22)
-            # print(1/0)
             self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            print(i, time.time(), "<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn rgb camera", "camera_id",
-                  self.camera_rgb1.id)
-            # print("camera_id", self.camera_rgb1.id)
-
-
-
-
-
-            i += 1
-            print(i, time.time()) # 36
             self.actor_list.append(self.camera_rgb1)
-
-            # add collision sensors
-            i += 1
-            print(i, time.time()) # 37
             bp = bp_library.find('sensor.other.collision')
-
-            i += 1
-            print(i, time.time()) # 38
-
             self.collision_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
-            print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>.spawn sensor.other.collision', self.collision_sensor.id)
-            i += 1
-            print(i, time.time()) # 39
             self.actor_list.append(self.collision_sensor)
-
-            # add invasion sensors
-            i += 1
-            print(i, time.time()) # 40
             bp = bp_library.find('sensor.other.lane_detector')
-            i += 1
-            print(i, time.time()) # 41
-
             self.invasion_sensor = world.try_spawn_actor(bp, carla.Transform(), attach_to=self.vehicle)
-            print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>..spawn self.invasion_sensor', self.invasion_sensor.id)
-            i += 1
-            print(i, time.time()) # 42
             self.actor_list.append(self.invasion_sensor)       # 39 steps for first time 42 steps for reset
         except Exception as e:
             print("spawn fail, sad news", e)
@@ -526,9 +238,7 @@ class CarlaEnv(gym.Env):
             try:
                 if len(live_carla_processes) == 0:
                     self.init_server()
-                print("restart the env", "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
                 self._restart()  # bugggggggggg!!!!!!!!!!!!!!!!!!!!!!!!
-                print("reset in env", "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
                 obs = self._reset()
                 return obs
             except Exception as e:
@@ -536,8 +246,6 @@ class CarlaEnv(gym.Env):
                   f.write('============Error====================, %s' % str(e))
                 cleanup()
                 self.init_server()
-                # self.destroy_actor()
-                print(e, "********************Error during reset in environment********************", time.time())
                 error = e
         raise error
 
@@ -768,10 +476,6 @@ class CarlaEnv(gym.Env):
         distance_before_act = ((self._history_waypoint[-1].transform.location.x - self.vehicle.get_location().x)**2 + 
                    (self._history_waypoint[-1].transform.location.y - self.vehicle.get_location().y)**2)**0.5
       
-        # command = self.planner()
-
-
-
         self.vehicle.apply_control(carla.VehicleControl(throttle=throttle, brake=brake, steer=steer))
         # sleep a little waiting for the responding from simulator
         if ENV_CONFIG["attention_mode"] == "None": #  or ENV_CONFIG["attention_mode"] == "hard":
