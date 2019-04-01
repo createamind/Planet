@@ -17,7 +17,7 @@ import math
 import numpy as np
 import gym
 import atexit
-# from datetime import datetime
+import datetime
 from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
 import os
@@ -105,7 +105,7 @@ ENV_CONFIG_test = {
 }
 
 
-ENV_CONFIG = ENV_CONFIG1
+ENV_CONFIG = ENV_CONFIG3
 live_carla_processes = set()
 
 
@@ -284,12 +284,14 @@ class CarlaEnv(gym.Env):
         # print(live_carla_processes)
         # live_carla_processes.add(os.getpgid(self.server_process.pid))
         pre_pid = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
+        if len(pre_pid) > 12:
+            pre_pid = np.delete(pre_pid, range(len(pre_pid) - 12))
         pid = np.array([x for x in live_carla_processes])
         np.savetxt('/tmp/pid_test.txt', np.concatenate([pre_pid, pid]), fmt='%d')
         # with open('/tmp/_carla_pid.txt', 'w') as f:
         #     f.write(str(self.server_process.pid))
             # f.write(str(os.getpgid(self.server_process.pid)))   # write carla server pid into file
-        time.sleep(12)  # wait for world get ready
+        time.sleep(15)  # wait for world get ready
 
     # @set_timeout(10)
     def _restart(self):

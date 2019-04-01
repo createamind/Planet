@@ -863,6 +863,10 @@ class ExternalProcess(object):
       # os.kill(pgid, 9)  # kill carla server
       # print(pid, '<<pid' * 20)
       ExternalProcess._conn.close()
+#      try:
+#        ExternalProcess._process.join()
+#      except:
+#        pass
       ExternalProcess._conn, ExternalProcess.conn = multiprocessing.Pipe()  # 2 connections. self._conn for parent process, conn for child process.
       ExternalProcess._process = multiprocessing.Process(
           target=self._worker, args=(self.constructor, ExternalProcess.conn))   # child process

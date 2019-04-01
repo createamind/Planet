@@ -155,7 +155,7 @@ class DenseNet():
 
 
 #
-large_net = True
+large_net = False
 
 if not large_net:
     def encoder(obs):
