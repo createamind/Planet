@@ -22,6 +22,7 @@ from gym.spaces import Box, Discrete, Tuple
 from scipy.stats import multivariate_normal
 import os
 import signal
+import datetime
 from datetime import timedelta
 import psutil
 from planet import ENV_CONFIG
@@ -42,7 +43,7 @@ def cleanup():
             child.kill()
         parent.kill()
 
-    live_carla_processes = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
+    live_carla_processes = np.loadtxt(PID_FILE_NAME, dtype=int, ndmin=1)
     print("Killing live carla processes", live_carla_processes)
     for pgid in live_carla_processes:
         try:
@@ -140,9 +141,12 @@ class CarlaEnv(gym.Env):
         live_carla_processes.add(self.server_process.pid)
         # print(live_carla_processes)
         # live_carla_processes.add(os.getpgid(self.server_process.pid))
-        pre_pid = np.loadtxt('/tmp/pid_test.txt', dtype=int, ndmin=1)
+        try:
+            pre_pid = np.loadtxt(PID_FILE_NAME, dtype=int, ndmin=1)
+        except:
+            pre_pid = []
         pid = np.array([x for x in live_carla_processes])
-        np.savetxt('/tmp/pid_test.txt', np.concatenate([pre_pid, pid]), fmt='%d')
+        np.savetxt(PID_FILE_NAME, np.concatenate([pre_pid, pid]), fmt='%d')
         # with open('/tmp/_carla_pid.txt', 'w') as f:
         #     f.write(str(self.server_process.pid))
             # f.write(str(os.getpgid(self.server_process.pid)))   # write carla server pid into file
