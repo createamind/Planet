@@ -93,9 +93,12 @@ ENV_CONFIG_test = {
 }
 
 
-ENV_CONFIG = ENV_CONFIG3
-# PID_FILE_NAME = 'hhhhh'
+ENV_CONFIG = ENV_CONFIG5
+
+LARGE_NET = False
+
 PID_FILE_NAME = '/tmp/pid_mode_{}_channel_{}_dim_{}.txt'.format(ENV_CONFIG['attention_mode'], ENV_CONFIG['attention_channel'], ENV_CONFIG['action_dim'])
 
 # ENV_CONFIG = ENV_CONFIG3
+LOG_NAME = './log_mode_{}_channel_{}_dim_{}'.format(ENV_CONFIG['attention_mode'], ENV_CONFIG['attention_channel'], ENV_CONFIG['action_dim'])
 

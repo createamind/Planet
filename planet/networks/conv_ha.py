@@ -20,6 +20,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from planet import LARGE_NET
 from planet import tools
 from tflearn.layers.conv import global_avg_pool
 # from tensorflow.examples.tutorials.mnist import input_data
@@ -155,7 +156,7 @@ class DenseNet():
 
 
 #
-large_net = True
+large_net = LARGE_NET
 
 if not large_net:
     def encoder(obs):

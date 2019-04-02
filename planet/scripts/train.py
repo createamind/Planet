@@ -50,6 +50,7 @@ matplotlib.use('Agg')
 import ruamel.yaml as yaml
 import tensorflow as tf
 
+from planet import LOG_NAME
 from planet import models
 from planet import tools
 from planet import training
@@ -112,7 +113,7 @@ if __name__ == '__main__':
   boolean = lambda x: bool(['False', 'True'].index(x))
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--logdir', default='./log_conv4')
+      '--logdir', default=LOG_NAME)
   parser.add_argument(
       '--num_runs', type=int, default=1)
   parser.add_argument(

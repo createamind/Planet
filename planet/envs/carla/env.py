@@ -592,7 +592,9 @@ if __name__ == '__main__':
     while True:
         i += 1
         # env.render()
-        obs, reward, done, info = env.step([1, 0])
+        
+        obs, reward, done, info = env.step(np.random.randn(ENV_CONFIG['action_dim']))
+        # obs, reward, done, info = env.step([1, 0])
         R += reward
         print(R)
         if i>100:
