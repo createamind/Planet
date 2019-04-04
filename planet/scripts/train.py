@@ -29,7 +29,7 @@ python3 -m planet.scripts.train \
     --num_runs 1000 \
     --config debug \
     --params '{tasks: [cheetah_run]}'
-
+scripts/train.py:55
 To run multiple experiments using a smaller number of workers, pass
 `--ping_every 30` to enable coordination between the workers.
 """

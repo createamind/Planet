@@ -873,10 +873,6 @@ class ExternalProcess(object):
       message, payload = ExternalProcess._conn.recv()
       # Re-raise exceptions in the main process.
 
-
-
-
-
     if message == self._EXCEPTION:
       stacktrace = payload
       raise Exception(stacktrace)

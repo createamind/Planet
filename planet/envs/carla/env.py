@@ -34,15 +34,14 @@ import threading
     encode for encode measurement in forth channel """
 
 live_carla_processes = set()
-
-
+# pid = os.getpid()
+# print(pid, "<<<<<<<<<<<<<<<<<<\n"*200)
 def cleanup():
     def stop(pid):
         parent = psutil.Process(pid)
         for child in parent.children(recursive=True):
             child.kill()
         parent.kill()
-
     live_carla_processes = np.loadtxt(PID_FILE_NAME, dtype=int, ndmin=1)
     print("Killing live carla processes", live_carla_processes)
     for pgid in live_carla_processes:
@@ -60,6 +59,7 @@ COUNT = 0
 class CarlaEnv(gym.Env):
     def __init__(self, config=ENV_CONFIG):
         self.config = config
+        # print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'*200)
         self.command = {
             "stop": 1,
             "lane_keep": 2,
@@ -133,7 +133,7 @@ class CarlaEnv(gym.Env):
         self.server_port = random.randint(10000, 60000)
         self.server_process = subprocess.Popen(
             [
-                "/home/gu/Downloads/carla94/CarlaUE4.sh", "-benchmark", '-fps=20'
+                "/home/gu/Downloads/carla94/CarlaUE4.sh", "-benchmark", '-fps=10',
                 "-ResX=400", "-ResY=300", "-carla-port={}".format(self.server_port)
             ],
             preexec_fn=os.setsid,
@@ -143,6 +143,8 @@ class CarlaEnv(gym.Env):
         # live_carla_processes.add(os.getpgid(self.server_process.pid))
         try:
             pre_pid = np.loadtxt(PID_FILE_NAME, dtype=int, ndmin=1)
+            if len(pre_pid)>5:
+                pre_pid = np.delete(pre_pid, range(0, len(pre_pid - 5)))
         except:
             pre_pid = []
         pid = np.array([x for x in live_carla_processes])
@@ -247,7 +249,8 @@ class CarlaEnv(gym.Env):
                 return obs
             except Exception as e:
                 with open("/home/gu/error_log %s.txt" % str(datetime.datetime.now()), "w") as f:
-                  f.write('============Error====================, %s' % str(e))
+                    f.write('============Error====================, %s' % str(e))
+                print("<<<<<<<<<<Error during reset in env>>>>>>>>>>")
                 cleanup()
                 self.init_server()
                 error = e
@@ -256,7 +259,7 @@ class CarlaEnv(gym.Env):
    #  @set_timeout(10)
     def _reset(self):
         # self._error_rest_test += 1
-        # if self._error_rest_test < 4:
+        # if self._error_rest_test < 3:
         #     print(1/0)
         # else:
         #     print("+++++++++++++++++++++++++++++++++++++++++++++++")
@@ -592,8 +595,7 @@ if __name__ == '__main__':
     while True:
         i += 1
         # env.render()
-        
-        obs, reward, done, info = env.step(np.random.randn(ENV_CONFIG['action_dim']))
+        obs, reward, done, info = env.step(np.clip(np.random.randn(ENV_CONFIG['action_dim']), -1, 1))
         # obs, reward, done, info = env.step([1, 0])
         R += reward
         print(R)
