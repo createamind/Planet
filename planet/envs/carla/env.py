@@ -130,7 +130,7 @@ class CarlaEnv(gym.Env):
     def init_server(self):
         print("Initializing new Carla server...")
         # Create a new server process and start the client.
-        self.server_port = random.randint(10000, 60000)
+        self.server_port = random.randint(1000, 60000)
         self.server_process = subprocess.Popen(
             [
                 "/home/gu/Downloads/carla94/CarlaUE4.sh", "-benchmark", '-fps=10',
@@ -148,7 +148,7 @@ class CarlaEnv(gym.Env):
         except:
             pre_pid = []
         pid = np.array([x for x in live_carla_processes])
-        np.savetxt(PID_FILE_NAME, np.concatenate([pre_pid, pid]), fmt='%d')
+        np.savetxt(PID_FILE_NAME, np.concatenate([pre_pid, pid]))
         # with open('/tmp/_carla_pid.txt', 'w') as f:
         #     f.write(str(self.server_process.pid))
             # f.write(str(os.getpgid(self.server_process.pid)))   # write carla server pid into file
@@ -211,6 +211,7 @@ class CarlaEnv(gym.Env):
             camera_rgb1.set_attribute('fov', '120')
             camera_rgb1.set_attribute('image_size_x', str(ENV_CONFIG["x_res"]))
             camera_rgb1.set_attribute('image_size_y', str(ENV_CONFIG["y_res"]))
+            # here is the bug, carla will throw bad_weak_ptr() and block the process
             self.camera_rgb1 = world.spawn_actor(camera_rgb1, camera_transform, attach_to=self.vehicle) # 32 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.actor_list.append(self.camera_rgb1)
             bp = bp_library.find('sensor.other.collision')
