@@ -133,7 +133,7 @@ class CarlaEnv(gym.Env):
         self.server_port = random.randint(1000, 60000)
         self.server_process = subprocess.Popen(
             [
-                "/home/gu/Downloads/carla94/CarlaUE4.sh", "-benchmark", '-fps=10',
+                "/data/carla94/CarlaUE4.sh", "-benchmark", '-fps=10',
                 "-ResX=400", "-ResY=300", "-carla-port={}".format(self.server_port)
             ],
             preexec_fn=os.setsid,
@@ -142,17 +142,18 @@ class CarlaEnv(gym.Env):
         # print(live_carla_processes)
         # live_carla_processes.add(os.getpgid(self.server_process.pid))
         try:
-            pre_pid = np.loadtxt(PID_FILE_NAME, dtype=int, ndmin=1)
+            pre_pid = np.loadtxt(PID_FILE_NAME, ndmin=1)
+            pre_pid = pre_pid.astype(int)
             if len(pre_pid)>5:
                 pre_pid = np.delete(pre_pid, range(0, len(pre_pid - 5)))
         except:
             pre_pid = []
         pid = np.array([x for x in live_carla_processes])
-        np.savetxt(PID_FILE_NAME, np.concatenate([pre_pid, pid]))
+        np.savetxt(PID_FILE_NAME, np.concatenate([pre_pid, pid]), fmt='%d')
         # with open('/tmp/_carla_pid.txt', 'w') as f:
         #     f.write(str(self.server_process.pid))
             # f.write(str(os.getpgid(self.server_process.pid)))   # write carla server pid into file
-        time.sleep(12)  # wait for world get ready
+        time.sleep(20)  # wait for world get ready
 
     # @set_timeout(10)
     def _restart(self):
@@ -595,7 +596,7 @@ if __name__ == '__main__':
     i = 0
     while True:
         i += 1
-        # env.render()
+        env.render()
         obs, reward, done, info = env.step(np.clip(np.random.randn(ENV_CONFIG['action_dim']), -1, 1))
         # obs, reward, done, info = env.step([1, 0])
         R += reward
