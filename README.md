@@ -39,7 +39,7 @@ Find more information:
 - [Paper as website][website]
 
 [blog]: https://ai.googleblog.com/2019/02/introducing-planet-deep-planning.html
-[paper]: https://danijar.com/publications/2019-planet.pdf
+[paper]: https://arxiv.org/pdf/1811.04551.pdf
 [website]: https://planetrl.github.io/
 
 ## Instructions
